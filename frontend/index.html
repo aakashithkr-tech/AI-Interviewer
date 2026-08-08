@@ -292,8 +292,10 @@
         <div class="orb-label" id="orbLabel">connecting…</div>
         <div class="caption" id="caption">—</div>
         <div class="caption small" id="feedback"></div>
+        <div class="caption small" style="opacity:.55;">🎙️ Start talking anytime — even mid-question. Say "exit interview" to leave.</div>
         <button class="mic-btn" id="micBtn">hold mic disabled — auto listening</button>
         <div class="control-row">
+          <button class="control-btn" id="skipBtn">⏭ Skip voiceover</button>
           <button class="control-btn" id="muteBtn">🔊 Mute voiceover</button>
           <button class="control-btn exit" id="exitBtn">Exit interview</button>
         </div>
@@ -500,21 +502,47 @@
     timeline.scrollTop = timeline.scrollHeight;
   }
 
+  // ---------- persona-matched TTS voices ----------
+  let cachedVoices = [];
+  function refreshVoices(){ cachedVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; }
+  if (window.speechSynthesis){
+    refreshVoices();
+    window.speechSynthesis.onvoiceschanged = refreshVoices;
+  }
+  function pickVoiceForPersona(p){
+    if (!cachedVoices.length) return null;
+    const english = cachedVoices.filter(v => /^en/i.test(v.lang));
+    const pool = english.length ? english : cachedVoices;
+    const byName = (patterns) => pool.find(v => patterns.some(pat => v.name.toLowerCase().includes(pat)));
+    if (p === 'strict') return byName(['male','david','daniel','mark','fred','guy']) || pool[Math.min(1, pool.length - 1)];
+    if (p === 'faang') return byName(['male','alex','daniel','guy','uk english male']) || pool[Math.min(2, pool.length - 1)];
+    return byName(['female','zira','samantha','us english']) || pool[0];
+  }
+
   // ---------- TTS ----------
+  let currentUtterResolve = null;
   function speak(text){
     return new Promise((resolve) => {
       if (!window.speechSynthesis || !text || voiceMuted) { resolve(); return; }
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = persona === 'strict' ? 1.05 : 0.98;
-      utter.pitch = persona === 'faang' ? 0.95 : 1.0;
-      utter.onend = resolve;
-      utter.onerror = resolve;
+      const v = pickVoiceForPersona(persona);
+      if (v) utter.voice = v;
+      utter.rate = persona === 'strict' ? 1.08 : persona === 'faang' ? 0.95 : 1.0;
+      utter.pitch = persona === 'strict' ? 0.82 : persona === 'faang' ? 0.8 : 1.05;
+      currentUtterResolve = resolve;
+      utter.onend = () => { currentUtterResolve = null; resolve(); };
+      utter.onerror = () => { currentUtterResolve = null; resolve(); };
       window.speechSynthesis.speak(utter);
     });
   }
+  function skipVoiceover(){
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (currentUtterResolve){ const r = currentUtterResolve; currentUtterResolve = null; r(); }
+  }
+  document.getElementById('skipBtn').addEventListener('click', skipVoiceover);
 
-  // ---------- STT ----------
+  // ---------- STT (simple, used for the exit-confirmation prompt) ----------
   function listenOnce(){
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
@@ -546,21 +574,110 @@
     });
   }
 
+  // ---------- STT with barge-in: starts listening the moment the question begins,
+  // so the candidate can start answering before the AI finishes speaking. If Chrome's
+  // recognizer times out on silence while the AI is still talking, it quietly restarts
+  // instead of failing — this only matters while `isAiSpeaking()` is still true.
+  // Note: without headphones, speaker audio leaking into the mic can occasionally
+  // trigger a false "barge-in" — recommend headphones for the smoothest demo.
+  function listenWithBargeIn(isAiSpeaking, onBargeIn){
+    return new Promise((resolve, reject) => {
+      if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
+
+      function startOne(){
+        recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        let finalTranscript = '';
+        let bargedIn = !isAiSpeaking();
+
+        recognition.onresult = (event) => {
+          let interim = '';
+          for (let i = event.resultIndex; i < event.results.length; i++){
+            const t = event.results[i][0].transcript;
+            if (event.results[i].isFinal) finalTranscript += t;
+            else interim += t;
+          }
+          const combined = (finalTranscript + ' ' + interim).trim();
+          if (!bargedIn && isAiSpeaking() && combined.replace(/\s/g, '').length >= 3){
+            bargedIn = true;
+            onBargeIn();
+          }
+          setCaption(combined || '…listening');
+        };
+        recognition.onerror = (e) => {
+          recognizing = false;
+          if (e.error === 'no-speech' && isAiSpeaking() && interviewActive){
+            try { recognition.stop(); } catch(err) {}
+            startOne(); // AI still talking, candidate hasn't started — keep waiting quietly
+            return;
+          }
+          reject(e);
+        };
+        recognition.onend = () => {
+          recognizing = false;
+          document.getElementById('micBtn').classList.remove('on');
+          if (finalTranscript.trim() || !isAiSpeaking() || !interviewActive){
+            resolve(finalTranscript.trim());
+          } else {
+            startOne(); // ended with nothing while AI still mid-question — restart
+          }
+        };
+        recognition.start();
+        recognizing = true;
+        document.getElementById('micBtn').classList.add('on');
+      }
+      startOne();
+    });
+  }
+
+  // ---------- voice "exit interview" command ----------
+  function isExitCommand(text){
+    const t = (text || '').toLowerCase();
+    const phrases = ['exit interview', 'end interview', 'stop interview', 'exit the interview',
+      'stop the interview', 'end the interview', 'quit interview', 'quit the interview',
+      'cancel interview', 'cancel the interview', 'i want to exit', 'i want to stop'];
+    return phrases.some(p => t.includes(p));
+  }
+  async function confirmExitByVoice(){
+    setFeedback('');
+    setCaption('Are you sure you want to exit the interview?');
+    setOrb('ai-speaking', 'confirming exit…');
+    await speak('Are you sure you want to exit the interview? Say yes to confirm, or no to continue.');
+    if (!interviewActive) return false;
+    setOrb('listening', 'listening for yes or no');
+    setCaption('…listening');
+    let reply = '';
+    try { reply = await listenOnce(); } catch (e) { return false; }
+    return /\b(yes|yeah|yep|confirm|sure|correct)\b/i.test(reply || '');
+  }
+
+
   // ---------- main interview loop ----------
-  async function askAndListen(questionText, difficulty, qNum, maxQ){
+  async function askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes){
     if (!interviewActive) return;
     renderLadder(difficulty);
     setFeedback('');
     setCaption(questionText);
-    setOrb('ai-speaking', 'interviewer speaking');
-    await speak(questionText);
-    if (!interviewActive) return;
+    setOrb('ai-speaking', 'interviewer speaking — jump in anytime');
 
-    setOrb('listening', 'listening — question ' + qNum + ' of ' + maxQ);
-    setCaption('…listening');
+    let aiSpeaking = true;
+    speak(questionText).then(() => {
+      aiSpeaking = false;
+      if (interviewActive) setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
+    });
+
     let answer = '';
     try {
-      answer = await listenOnce();
+      answer = await listenWithBargeIn(
+        () => aiSpeaking,
+        () => {
+          aiSpeaking = false;
+          skipVoiceover();
+          if (interviewActive) setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
+        }
+      );
     } catch (e) {
       if (!interviewActive) return;
       setFeedback('Could not capture audio — check mic permissions and try again.');
@@ -570,7 +687,20 @@
     if (!interviewActive) return;
     if (!answer){
       setFeedback('Didn\'t catch that — try again.');
-      return askAndListen(questionText, difficulty, qNum, maxQ);
+      return askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes);
+    }
+
+    if (isExitCommand(answer)){
+      const confirmed = await confirmExitByVoice();
+      if (!interviewActive) return;
+      if (confirmed){
+        stopInterview();
+        setConn('idle', false);
+        document.getElementById('sessionLabel').style.display = 'none';
+        showScreen('welcome');
+        return;
+      }
+      return askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes);
     }
 
     setOrb('thinking', 'evaluating…');
@@ -597,7 +727,7 @@
       return;
     }
 
-    return askAndListen(data.nextQuestion, data.difficulty, data.questionNumber, data.maxQuestions);
+    return askAndListen(data.nextQuestion, data.difficulty, data.questionNumber, data.elapsedMinutes, data.targetMinutes);
   }
 
   // ---------- start interview ----------
@@ -636,7 +766,7 @@
       document.getElementById('sessionLabel').textContent = sessionId.slice(0,8);
       setConn('live', true);
       showScreen('room');
-      askAndListen(data.question, data.difficulty, data.questionNumber, data.maxQuestions);
+      askAndListen(data.question, data.difficulty, data.questionNumber, 0, data.targetMinutes);
     } catch (err) {
       setConn('error', false);
       welcomeWarning.style.display = 'block';

@@ -141,7 +141,9 @@ function safeParseJSON(text) {
 // sessions: Map<sessionId, SessionState>
 const sessions = new Map();
 
-const MAX_QUESTIONS = 8;
+const MAX_QUESTIONS = parseInt(process.env.MAX_QUESTIONS || '20', 10); // absolute safety cap, not the normal ending condition
+const TARGET_MINUTES = parseFloat(process.env.INTERVIEW_MINUTES || '10'); // interview paces itself to roughly this long
+const MIN_QUESTIONS_BEFORE_TIME_END = 5; // don't let it end too early even if the model rushes
 
 const PERSONAS = {
   friendly: 'Friendly and encouraging. Use warm phrasing, gentle nudges, light positive reinforcement ("Nice, can you go a little deeper?").',
@@ -154,13 +156,16 @@ function buildSystemPrompt(persona, topic) {
 
 Persona / tone: ${PERSONAS[persona] || PERSONAS.friendly}
 
+This is a TIME-BOXED interview targeting roughly ${TARGET_MINUTES} minutes total, not a fixed question count. Pace yourself against the elapsed time you're given each turn — don't stop after a small fixed number of questions, and don't run drastically over the target either.
+
 Your job every turn:
 1. Judge the candidate's latest answer for CORRECTNESS (correct / partial / incorrect) and COMPETENCE (0-100).
 2. Separately judge CONFIDENCE (0-100) from the way they spoke — hedging words like "umm", "I think", "maybe", "not sure" lower confidence even if the content is correct; assertive phrasing raises it even if the content is wrong. Confidence and competence are independent signals — call out mismatches (e.g. low confidence + correct answer, or high confidence + wrong answer).
-3. Adapt difficulty: if the answer is strong, ask a harder follow-up on the SAME thread (dig deeper, don't just jump topics). If the answer is weak, step back to a simpler foundational question on the same concept before moving on. Track difficulty on a 1-5 scale.
-4. Give evidence-based feedback: quote or closely paraphrase a short specific piece of what the candidate said and explain what it reveals. Never give generic feedback like "weak in X" without pointing to the specific statement that shows it.
-5. Decide the next question. Prefer follow-ups that build a thread (e.g. embeddings -> vector DB -> RAG -> full pipeline) over jumping randomly.
-6. After roughly ${MAX_QUESTIONS} questions, or if the topic has been thoroughly covered, set "done": true and ask no further question.
+3. Adapt difficulty: if the answer is strong, ask a harder follow-up on the SAME thread (dig deeper, don't just jump randomly). If the answer is weak, step back to a simpler foundational question on the same concept before moving on. Track difficulty on a 1-5 scale.
+4. BREADTH RULE: don't dig into one single concept/thread indefinitely. After at most 2-3 consecutive questions deepening one specific thread (e.g. stacks), deliberately move to a different but related core concept within the same subject (e.g. queues, trees, hashing, recursion — whatever fits "${topic}") so the interview covers a spread of the subject, not just one corner of it.
+5. Give evidence-based feedback: quote or closely paraphrase a short specific piece of what the candidate said and explain what it reveals. Never give generic feedback like "weak in X" without pointing to the specific statement that shows it.
+6. Decide the next question, building a natural thread within whichever subtopic you're currently on.
+7. End the interview (set "done": true, "nextQuestion": "") once you judge the subject has been reasonably covered for a ${TARGET_MINUTES}-minute session, or when told elapsed time is at/past target — whichever comes first. Do not end before at least ${MIN_QUESTIONS_BEFORE_TIME_END} questions have been asked.
 
 Always reply with STRICT JSON only, no markdown, matching this schema exactly:
 {
@@ -170,7 +175,7 @@ Always reply with STRICT JSON only, no markdown, matching this schema exactly:
   "evidenceFeedback": "<one or two sentences, quoting/paraphrasing the candidate's own words>",
   "nextDifficulty": <1-5 integer>,
   "nextQuestion": "<the next interview question, in the persona's tone, or empty string if done>",
-  "topicTag": "<short tag for the concept just tested, e.g. 'embeddings', 'chunking-strategy', 'vector-db'>",
+  "topicTag": "<short tag for the concept just tested, e.g. 'stacks', 'queues', 'recursion'>",
   "done": <true|false>
 }`;
 }
@@ -212,6 +217,7 @@ app.post('/api/interview/start', async (req, res) => {
       difficulty: parsed.nextDifficulty || 2,
       turns: [],
       createdAt: Date.now(),
+      startedAt: Date.now(),
       lastActive: Date.now(),
       done: false,
       _pendingQuestion: parsed.nextQuestion
@@ -223,7 +229,7 @@ app.post('/api/interview/start', async (req, res) => {
       question: parsed.nextQuestion,
       difficulty: session.difficulty,
       questionNumber: 1,
-      maxQuestions: MAX_QUESTIONS,
+      targetMinutes: TARGET_MINUTES,
       done: false
     });
   } catch (err) {
@@ -241,6 +247,9 @@ app.post('/api/interview/answer', async (req, res) => {
     if (!answer || !answer.trim()) return res.status(400).json({ error: 'Empty answer' });
 
     const questionNumber = session.turns.length + 1;
+    const elapsedMin = (Date.now() - session.startedAt) / 60000;
+    const overTime = elapsedMin >= TARGET_MINUTES && questionNumber > MIN_QUESTIONS_BEFORE_TIME_END;
+    const hitAbsoluteCap = questionNumber >= MAX_QUESTIONS;
 
     // Build conversation transcript for context
     const transcript = session.turns.map((t, i) =>
@@ -248,7 +257,8 @@ app.post('/api/interview/answer', async (req, res) => {
     ).join('\n\n');
 
     const userPrompt = `Topic: ${session.topic}
-Questions asked so far: ${questionNumber} of max ${MAX_QUESTIONS}
+Question number: ${questionNumber}
+Elapsed time: ${elapsedMin.toFixed(1)} minutes of a ~${TARGET_MINUTES}-minute target
 Current difficulty: ${session.difficulty}
 
 Transcript so far:
@@ -257,7 +267,7 @@ ${transcript || '(none yet)'}
 Current question asked: ${session._pendingQuestion}
 Candidate's spoken answer (transcribed): "${answer}"
 
-Evaluate this answer and produce the next step, per the schema.${questionNumber >= MAX_QUESTIONS ? ' This is the FINAL question — set done: true and nextQuestion to "".' : ''}`;
+Evaluate this answer and produce the next step, per the schema.${overTime || hitAbsoluteCap ? ' Time is up (or the safety question cap was hit) — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
 
     const raw = await callLLM(buildSystemPrompt(session.persona, session.topic), userPrompt);
     const parsed = safeParseJSON(raw);
@@ -281,7 +291,7 @@ Evaluate this answer and produce the next step, per the schema.${questionNumber 
     session.turns.push(turn);
     session.lastActive = Date.now();
 
-    const isDone = !!parsed.done || questionNumber >= MAX_QUESTIONS;
+    const isDone = !!parsed.done || overTime || hitAbsoluteCap;
     session.done = isDone;
     session.difficulty = clamp(parsed.nextDifficulty, 1, 5, session.difficulty);
     session._pendingQuestion = isDone ? null : (parsed.nextQuestion || '');
@@ -295,7 +305,8 @@ Evaluate this answer and produce the next step, per the schema.${questionNumber 
       difficulty: session.difficulty,
       nextQuestion: session._pendingQuestion,
       questionNumber: questionNumber + (isDone ? 0 : 1),
-      maxQuestions: MAX_QUESTIONS,
+      elapsedMinutes: Math.round(elapsedMin * 10) / 10,
+      targetMinutes: TARGET_MINUTES,
       done: isDone
     });
   } catch (err) {
