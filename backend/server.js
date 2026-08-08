@@ -268,12 +268,20 @@ const PERSONAS = {
   faang: 'FAANG-bar-raiser style. Frame questions as system design / real-world scenarios ("Imagine you are designing X. Continue."). High expectations, probing follow-ups.'
 };
 
-function buildSystemPrompt(persona, topic, memoryContext) {
+function buildSystemPrompt(persona, topic, memoryContext, targetMinutes, interviewType, experience) {
+  targetMinutes = targetMinutes || TARGET_MINUTES;
   return `You are an adaptive AI technical interviewer conducting a live spoken interview on the topic: "${topic}".
 
 Persona / tone: ${PERSONAS[persona] || PERSONAS.friendly}
+Interview type: ${interviewType || 'Technical'} — ${
+    interviewType === 'Behavioral' ? 'favor behavioral/situational questions (STAR-style) over pure technical trivia.'
+    : interviewType === 'Mixed' ? 'blend technical questions with behavioral/situational ones.'
+    : interviewType === 'System Design' ? 'favor open-ended system design / architecture scenarios over narrow trivia.'
+    : 'favor technical depth questions.'
+  }
+Candidate experience level: ${experience || 'Intermediate'} — calibrate question difficulty and expected depth accordingly.
 
-This is a TIME-BOXED interview targeting roughly ${TARGET_MINUTES} minutes total, not a fixed question count. Pace yourself against the elapsed time you're given each turn — don't stop after a small fixed number of questions, and don't run drastically over the target either.
+This is a TIME-BOXED interview targeting roughly ${targetMinutes} minutes total, not a fixed question count. Pace yourself against the elapsed time you're given each turn — don't stop after a small fixed number of questions, and don't run drastically over the target either.
 ${memoryContext ? `\n${memoryContext}\n` : ''}
 Your job every turn:
 1. Judge the candidate's latest answer for CORRECTNESS (correct / partial / incorrect) and COMPETENCE (0-100).
@@ -284,7 +292,7 @@ Your job every turn:
 6. Write a short INTERNAL interviewer's note (5-12 words, like a scratchpad jotting a human interviewer would make, e.g. "Couldn't justify embedding choice, needed a hint") — never shown to the candidate live, only in the final report.
 7. If relevant past concepts were provided above, occasionally (not every turn) weave in a genuine cross-day linking question that asks the candidate to connect the current topic to something they covered before — this is the single most valuable kind of question, use it when it fits naturally.
 8. Decide the next question, building a natural thread within whichever subtopic you're currently on.
-9. End the interview (set "done": true, "nextQuestion": "") once you judge the subject has been reasonably covered for a ${TARGET_MINUTES}-minute session, or when told elapsed time is at/past target — whichever comes first. Do not end before at least ${MIN_QUESTIONS_BEFORE_TIME_END} questions have been asked.
+9. End the interview (set "done": true, "nextQuestion": "") once you judge the subject has been reasonably covered for a ${targetMinutes}-minute session, or when told elapsed time is at/past target — whichever comes first. Do not end before at least ${MIN_QUESTIONS_BEFORE_TIME_END} questions have been asked.
 
 Always reply with STRICT JSON only, no markdown, matching this schema exactly:
 {
@@ -301,8 +309,8 @@ Always reply with STRICT JSON only, no markdown, matching this schema exactly:
 }`;
 }
 
-function buildFirstQuestionPrompt(persona, topic, memoryContext) {
-  return `Generate the FIRST interview question for a live spoken technical interview on "${topic}".${memoryContext ? ` ${memoryContext}` : ''} Start at a medium-easy difficulty (level 2 of 5) to establish a baseline. If relevant past-day concepts were given above and one connects naturally to "${topic}", you may open with a light callback ("Last time you covered X — today let's build on that with ${topic}.") but keep the actual question itself foundational. Reply with STRICT JSON only:
+function buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience) {
+  return `Generate the FIRST interview question for a live spoken ${interviewType || 'Technical'}-style interview on "${topic}", for a candidate at ${experience || 'Intermediate'} experience level.${memoryContext ? ` ${memoryContext}` : ''} Start at a medium-easy difficulty (level 2 of 5) to establish a baseline. If relevant past-day concepts were given above and one connects naturally to "${topic}", you may open with a light callback ("Last time you covered X — today let's build on that with ${topic}.") but keep the actual question itself foundational. Reply with STRICT JSON only:
 {
   "nextQuestion": "<the opening question, in tone: ${PERSONAS[persona] || PERSONAS.friendly}>",
   "nextDifficulty": 2,
@@ -325,16 +333,20 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/interview/start', async (req, res) => {
   try {
-    const { topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '' } = req.body || {};
+    const {
+      topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '',
+      experience = 'Intermediate', interviewType = 'Technical', durationMinutes
+    } = req.body || {};
     const sessionId = uuidv4();
     const candidateKey = slugKey(candidateName);
+    const targetMinutes = [15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES;
 
     const memory = await retrieveCrossDayMemory(candidateKey, topic, 3);
     const memoryContext = formatMemoryContext(memory);
 
     const raw = await callLLM(
       'You are an interview question generator. Reply with strict JSON only.',
-      buildFirstQuestionPrompt(persona, topic, memoryContext)
+      buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience)
     );
     const parsed = safeParseJSON(raw) || {
       nextQuestion: `Let's start with the basics — can you explain what ${topic} means in your own words?`,
@@ -348,6 +360,9 @@ app.post('/api/interview/start', async (req, res) => {
       candidateName,
       topic,
       persona,
+      experience,
+      interviewType,
+      targetMinutes,
       difficulty: parsed.nextDifficulty || 2,
       turns: [],
       createdAt: Date.now(),
@@ -364,7 +379,7 @@ app.post('/api/interview/start', async (req, res) => {
       question: parsed.nextQuestion,
       difficulty: session.difficulty,
       questionNumber: 1,
-      targetMinutes: TARGET_MINUTES,
+      targetMinutes,
       crossDayLink: !!parsed.crossDayLink,
       dayNumber: memory.dayCount + 1,
       linkedConcepts: memory.items.map(c => c.tag),
@@ -384,9 +399,10 @@ app.post('/api/interview/answer', async (req, res) => {
     if (session.done) return res.status(400).json({ error: 'Interview already complete', done: true });
     if (!answer || !answer.trim()) return res.status(400).json({ error: 'Empty answer' });
 
+    const targetMinutes = session.targetMinutes || TARGET_MINUTES;
     const questionNumber = session.turns.length + 1;
     const elapsedMin = (Date.now() - session.startedAt) / 60000;
-    const overTime = elapsedMin >= TARGET_MINUTES && questionNumber > MIN_QUESTIONS_BEFORE_TIME_END;
+    const overTime = elapsedMin >= targetMinutes && questionNumber > MIN_QUESTIONS_BEFORE_TIME_END;
     const hitAbsoluteCap = questionNumber >= MAX_QUESTIONS;
 
     // Build conversation transcript for context
@@ -398,7 +414,7 @@ app.post('/api/interview/answer', async (req, res) => {
 
     const userPrompt = `Topic: ${session.topic}
 Question number: ${questionNumber}
-Elapsed time: ${elapsedMin.toFixed(1)} minutes of a ~${TARGET_MINUTES}-minute target
+Elapsed time: ${elapsedMin.toFixed(1)} minutes of a ~${targetMinutes}-minute target
 Current difficulty: ${session.difficulty}
 
 Transcript so far:
@@ -409,7 +425,10 @@ Candidate's spoken answer (transcribed): "${answer}"
 
 Evaluate this answer and produce the next step, per the schema.${overTime || hitAbsoluteCap ? ' Time is up (or the safety question cap was hit) — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
 
-    const raw = await callLLM(buildSystemPrompt(session.persona, session.topic, memoryContext), userPrompt);
+    const raw = await callLLM(
+      buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience),
+      userPrompt
+    );
     const parsed = safeParseJSON(raw);
 
     if (!parsed) {
@@ -459,7 +478,7 @@ Evaluate this answer and produce the next step, per the schema.${overTime || hit
       nextQuestion: session._pendingQuestion,
       questionNumber: questionNumber + (isDone ? 0 : 1),
       elapsedMinutes: Math.round(elapsedMin * 10) / 10,
-      targetMinutes: TARGET_MINUTES,
+      targetMinutes,
       crossDayLink: turn.crossDayLink,
       done: isDone
     });
@@ -562,6 +581,53 @@ app.get('/api/candidate/:name/summary', (req, res) => {
     lastTopic: last.topic,
     lastDate: last.date,
     recentTags: [...new Set(candidate.sessions.slice(-3).flatMap(s => (s.concepts || []).map(c => c.tag)))]
+  });
+});
+
+// Powers the Dashboard's "Interview Readiness" / "Recent Interviews" and the
+// Report's "Progress" trend — derived from the same candidate store used for
+// cross-day RAG linking, no extra persistence needed.
+app.get('/api/candidate/:name/history', (req, res) => {
+  const key = slugKey(req.params.name);
+  const store = loadStore();
+  const candidate = store[key];
+  if (!candidate || !candidate.sessions.length) return res.json({ hasHistory: false });
+
+  const scored = candidate.sessions.filter(s => s.scores && typeof s.scores.hiringProbability === 'number');
+  if (!scored.length) return res.json({ hasHistory: false });
+
+  const recent = scored.slice(-8).reverse(); // newest first, for the "Recent Interviews" list
+  const trend = scored.slice(-5).map(s => s.scores.hiringProbability); // oldest -> newest, for the report trend line
+  const readiness = trend[trend.length - 1];
+
+  const latestScores = recent[0].scores;
+  const skillBars = [
+    { label: 'Technical', score: latestScores.competence },
+    { label: 'Communication', score: latestScores.communication },
+    { label: 'Problem Solving', score: latestScores.problemSolving }
+  ];
+
+  // Weakest concept tag across all sessions, by average competence.
+  const tagAgg = new Map();
+  candidate.sessions.forEach(s => {
+    (s.concepts || []).forEach(c => {
+      if (!tagAgg.has(c.tag)) tagAgg.set(c.tag, []);
+      tagAgg.get(c.tag).push(c.avgCompetence);
+    });
+  });
+  let weakest = null;
+  for (const [tag, arr] of tagAgg.entries()) {
+    const avg = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+    if (!weakest || avg < weakest.score) weakest = { tag, score: avg };
+  }
+
+  res.json({
+    hasHistory: true,
+    readiness,
+    trend,
+    skillBars,
+    weakest,
+    sessions: recent.map(s => ({ topic: s.topic, date: s.date, score: s.scores.hiringProbability }))
   });
 });
 
