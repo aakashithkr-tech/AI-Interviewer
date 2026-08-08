@@ -5,6 +5,9 @@ const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const app = express();
 app.use(cors());
@@ -412,6 +415,49 @@ function formatMemoryContext(memory) {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, models: MODELS, keysConfigured: API_KEYS.length, groqFallback: !!GROQ_API_KEY });
+});
+
+// ---- Resume/JD file upload: extracts plain text so the frontend can drop it
+// straight into the existing resumeContext textarea. PDF via pdf-parse;
+// anything else (.txt/.md) is read as-is. Nothing is written to disk —
+// parsed in memory and returned once. Optionally saved to the candidate's
+// profile below if a name is provided, so it auto-fills next login.
+app.post('/api/resume/parse', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const name = (req.file.originalname || '').toLowerCase();
+    let text = '';
+    if (name.endsWith('.pdf') || req.file.mimetype === 'application/pdf') {
+      const data = await pdfParse(req.file.buffer);
+      text = data.text || '';
+    } else {
+      text = req.file.buffer.toString('utf8');
+    }
+    text = text.replace(/\r/g, '').trim().slice(0, 8000);
+    if (!text) return res.status(422).json({ error: 'Could not extract any text from that file — try pasting it instead.' });
+
+    const candidateName = (req.body && req.body.candidateName) || '';
+    if (candidateName.trim()) {
+      const key = slugKey(candidateName);
+      const store = loadStore();
+      if (!store[key]) store[key] = { name: candidateName, sessions: [] };
+      store[key].lastResumeText = text;
+      saveStore(store);
+    }
+
+    res.json({ text });
+  } catch (err) {
+    console.error('[resume-parse]', err.message);
+    res.status(500).json({ error: 'Failed to parse file', detail: err.message });
+  }
+});
+
+// Lets the welcome screen auto-fill a previously uploaded resume for a returning candidate.
+app.get('/api/candidate/:name/resume', (req, res) => {
+  const key = slugKey(req.params.name);
+  const store = loadStore();
+  const text = store[key] && store[key].lastResumeText;
+  res.json({ hasResume: !!text, text: text || '' });
 });
 
 app.post('/api/interview/start', async (req, res) => {

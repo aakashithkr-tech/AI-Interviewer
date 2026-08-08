@@ -626,7 +626,9 @@
         <summary>✏️ Paste resume or JD to get role-specific questions</summary>
         <textarea id="resumeInput" class="mono" rows="6" placeholder="Paste your resume text or the job description here — the interviewer will tailor questions to what's actually in it (projects, stack, responsibilities) instead of generic textbook questions." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
         <div style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
-          <button type="button" class="btn-ghost" id="pasteClipboardBtn" style="padding:6px 12px; font-size:11.5px;">📋 Paste from clipboard</button>
+        <button type="button" class="btn-ghost" id="pasteClipboardBtn" style="padding:6px 12px; font-size:11.5px;">📋 Paste from clipboard</button>
+          <button type="button" class="btn-ghost" id="uploadResumeBtn" style="padding:6px 12px; font-size:11.5px;">📎 Upload PDF / TXT</button>
+          <input type="file" id="resumeFileInput" accept=".pdf,.txt,.md" style="display:none;" />
           <span id="pasteStatus" style="font-size:11px; color:var(--ink-faint);">If Ctrl+V doesn't work in this browser, use this button instead.</span>
         </div>
       </details>
@@ -1166,8 +1168,37 @@
   }
 
   // ---------- resume/JD paste fallback ----------
-  const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
+ const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
   const pasteStatus = document.getElementById('pasteStatus');
+
+  // ---------- resume/JD file upload (PDF/TXT) ----------
+  const uploadResumeBtn = document.getElementById('uploadResumeBtn');
+  const resumeFileInput = document.getElementById('resumeFileInput');
+  if (uploadResumeBtn && resumeFileInput) {
+    uploadResumeBtn.addEventListener('click', () => resumeFileInput.click());
+    resumeFileInput.addEventListener('change', async () => {
+      const file = resumeFileInput.files[0];
+      if (!file) return;
+      pasteStatus.textContent = 'Reading ' + file.name + '…';
+      const fd = new FormData();
+      fd.append('file', file);
+      if (userName) fd.append('candidateName', userName);
+      try {
+        const res = await fetch(apiBase() + '/api/resume/parse', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'failed to parse file');
+        const resumeInput = document.getElementById('resumeInput');
+        resumeInput.value = data.text;
+        if (window.localStorage) localStorage.setItem('interview_resume_context', data.text);
+        pasteStatus.textContent = '✅ Extracted ' + data.text.length + ' characters from ' + file.name + '.';
+      } catch (e) {
+        pasteStatus.textContent = 'Could not read that file (' + e.message + ') — try pasting the text instead.';
+      } finally {
+        resumeFileInput.value = '';
+      }
+    });
+  }
+
   if (pasteClipboardBtn) {
     pasteClipboardBtn.addEventListener('click', async () => {
       const resumeInput = document.getElementById('resumeInput');
