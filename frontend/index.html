@@ -1560,33 +1560,15 @@
 
       const SILENCE_GRACE_MS = 2500; // real, our-own-clock silence required before we call an answer "finished"
       const MAX_EMPTY_RESTARTS = 12; // give up only if truly nothing is ever heard
+      const HARD_TIMEOUT_MS = 45000; // absolute safety cap against background noise keeping the
+        // silence clock from ever clearing — forces a submit of whatever was heard once crossed.
 
       let finalTranscript = '';
       let lastSpeechAt = Date.now();
       let emptyRestarts = 0;
+      const startedAt = Date.now();
+      let fatalError = null; // set by onerror for a REAL mic failure; acted on in onend only
       manualStopRequested = false; // module-level flag; set by the "I'm done" button
-
-      function handleNaturalStop(){
-        const silentFor = Date.now() - lastSpeechAt;
-        if (finalTranscript.trim() && silentFor >= SILENCE_GRACE_MS){
-          // Candidate said something AND has now genuinely paused — done answering.
-          resolve(finalTranscript.trim());
-          return;
-        }
-        if (finalTranscript.trim()){
-          // Said something, but not silent long enough by our own clock yet —
-          // the browser cut the session short mid-thought. Keep listening.
-          emptyRestarts = 0;
-        } else {
-          emptyRestarts++;
-          if (emptyRestarts >= MAX_EMPTY_RESTARTS){
-            resolve(''); // genuinely nothing heard — let the caller show "didn't catch that"
-            return;
-          }
-        }
-        try { recognition.stop(); } catch(err) {}
-        startOne();
-      }
 
       function startOne(){
         recognition = new SpeechRecognition();
@@ -1595,6 +1577,10 @@
         recognition.continuous = true; // keep listening through natural pauses instead of ending after the first one — this was cutting candidates off mid-answer
         recognition.maxAlternatives = 1;
         let bargedIn = !isAiSpeaking();
+        let endHandled = false; // guards against onerror AND onend both firing for the same
+          // stopped instance and each independently deciding to restart — that double-restart
+          // was spinning up two parallel recognizer instances at once, which is what caused the
+          // exact same question to get re-asked over and over instead of accepting the answer.
 
         recognition.onresult = (event) => {
           let interim = '';
@@ -1613,25 +1599,49 @@
         };
         recognition.onerror = (e) => {
           recognizing = false;
-          // A manual stop (the "I'm done" button) can itself surface as an
-          // 'aborted'/'no-speech' error on some browsers right before onend —
-          // that is not a real mic failure, so don't reject in that case;
-          // let onend below resolve normally with whatever was captured.
-          if (manualStopRequested) return;
-          if (e.error === 'no-speech' && interviewActive){
-            handleNaturalStop();
-            return;
-          }
-          reject(e);
+          // Deliberately does NOT restart or resolve here. 'end' always fires shortly
+          // after 'error' for every browser we've tested — letting both handlers each
+          // decide independently to restart was the double-instance bug above. Just
+          // remember whether this was a real failure; onend (single source of truth)
+          // acts on it below.
+          if (e.error !== 'no-speech') fatalError = e;
         };
         recognition.onend = () => {
+          if (endHandled) return;
+          endHandled = true;
           recognizing = false;
           document.getElementById('micBtn').classList.remove('on');
+
           if (manualStopRequested || !interviewActive){
             resolve(finalTranscript.trim());
             return;
           }
-          handleNaturalStop();
+          if (fatalError){
+            reject(fatalError);
+            return;
+          }
+          if (Date.now() - startedAt >= HARD_TIMEOUT_MS){
+            resolve(finalTranscript.trim());
+            return;
+          }
+          const silentFor = Date.now() - lastSpeechAt;
+          if (finalTranscript.trim() && silentFor >= SILENCE_GRACE_MS){
+            // Candidate said something AND has now genuinely paused — done answering.
+            resolve(finalTranscript.trim());
+            return;
+          }
+          if (finalTranscript.trim()){
+            // Said something, but not silent long enough by our own clock yet —
+            // the browser cut the session short mid-thought. Keep listening.
+            emptyRestarts = 0;
+          } else {
+            emptyRestarts++;
+            if (emptyRestarts >= MAX_EMPTY_RESTARTS){
+              resolve(''); // genuinely nothing heard — let the caller show "didn't catch that"
+              return;
+            }
+          }
+          startOne(); // the ONLY place a restart happens
         };
         recognition.start();
         recognizing = true;
@@ -1686,7 +1696,8 @@
   }
 
   // ---------- main interview loop ----------
-  async function askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink){
+  async function askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink, emptyAttempt){
+    emptyAttempt = emptyAttempt || 0;
     if (!interviewActive) return;
     lastAskArgs = [questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink];
     clearMicRetry();
