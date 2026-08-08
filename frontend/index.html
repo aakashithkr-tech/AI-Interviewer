@@ -644,6 +644,7 @@
         <div class="caption small" style="opacity:.55;">🎙️ Start talking anytime — even mid-question. Say "exit interview" to leave.</div>
         <button class="mic-btn" id="micBtn">hold mic disabled — auto listening</button>
         <div class="control-row">
+          <button class="control-btn" id="doneAnsweringBtn" style="border-color:var(--teal);color:var(--teal);">✅ I'm done — submit now</button>
           <button class="control-btn" id="skipBtn">⏭ Skip voiceover</button>
           <button class="control-btn" id="muteBtn">🔊 Mute voiceover</button>
           <button class="control-btn" id="camToggleRoomBtn">🎥 Enable camera</button>
@@ -1347,6 +1348,20 @@
     if (currentUtterResolve){ const r = currentUtterResolve; currentUtterResolve = null; r(); }
   }
   document.getElementById('skipBtn').addEventListener('click', skipVoiceover);
+
+  // ---------- manual "done answering" override ----------
+  // Chrome's continuous speech recognition waits for ITS OWN silence-detection
+  // heuristic to decide the candidate has stopped talking, which can lag well
+  // behind the candidate actually finishing — this button lets them force an
+  // immediate stop instead of waiting. recognition.stop() triggers the normal
+  // onend handler already in listenWithBargeIn/listenOnce, which resolves with
+  // whatever final transcript was captured so far — same code path as a
+  // natural pause, just triggered on demand.
+  document.getElementById('doneAnsweringBtn').addEventListener('click', () => {
+    if (recognition && recognizing) {
+      try { recognition.stop(); } catch (e) {}
+    }
+  });
 
   // ---------- report: full transcript + replay ----------
   // "Replay" has no recorded audio to play back (nothing is ever uploaded/stored),

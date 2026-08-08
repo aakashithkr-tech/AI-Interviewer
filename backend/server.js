@@ -415,6 +415,8 @@ app.post('/api/interview/answer', async (req, res) => {
 
     const memoryContext = formatMemoryContext(session.memory);
 
+    const hasVisualForPrompt = typeof visualConfidence === 'number' && !Number.isNaN(visualConfidence);
+
     const userPrompt = `Topic: ${session.topic}
 Question number: ${questionNumber}
 Elapsed time: ${elapsedMin.toFixed(1)} minutes of a ~${targetMinutes}-minute target
@@ -425,6 +427,7 @@ ${transcript || '(none yet)'}
 
 Current question asked: ${session._pendingQuestion}
 Candidate's spoken answer (transcribed): "${answer}"
+${hasVisualForPrompt ? `On-device webcam posture/eye-contact score for this answer: ${Math.round(visualConfidence)}/100 (derived from shoulder level, head position, and gaze steadiness — a rough physical-presence signal, separate from vocal tone). Weigh this alongside vocal cues for your CONFIDENCE judgment, and if it clearly diverges from what the words/tone suggest (e.g. strong words but poor posture score, or shaky words but steady posture), you may briefly note that mismatch in evidenceFeedback.` : ''}
 
 Evaluate this answer and produce the next step, per the schema.${overTime || hitAbsoluteCap ? ' Time is up (or the safety question cap was hit) — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
 
