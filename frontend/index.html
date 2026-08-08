@@ -562,9 +562,13 @@
 
     <div>
       <div class="section-label">Resume / job description (optional)</div>
-      <details class="config" id="resumeDetails">
+      <details class="config" id="resumeDetails" open>
         <summary>✏️ Paste resume or JD to get role-specific questions</summary>
         <textarea id="resumeInput" class="mono" rows="6" placeholder="Paste your resume text or the job description here — the interviewer will tailor questions to what's actually in it (projects, stack, responsibilities) instead of generic textbook questions." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
+        <div style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
+          <button type="button" class="btn-ghost" id="pasteClipboardBtn" style="padding:6px 12px; font-size:11.5px;">📋 Paste from clipboard</button>
+          <span id="pasteStatus" style="font-size:11px; color:var(--ink-faint);">If Ctrl+V doesn't work in this browser, use this button instead.</span>
+        </div>
       </details>
     </div>
 
@@ -979,6 +983,35 @@
     });
   });
   document.getElementById('topicInput').addEventListener('input', (e) => { selectedTopic = e.target.value.trim(); });
+
+  // ---------- resume/JD paste fallback ----------
+  // Some embedded webviews / browser configs block the native Ctrl+V paste
+  // shortcut into a textarea (clipboard permission quirks) even though typing
+  // works fine. This button uses the async Clipboard API directly as a
+  // reliable fallback so pasting a resume/JD never depends on the keyboard shortcut.
+  const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
+  const pasteStatus = document.getElementById('pasteStatus');
+  if (pasteClipboardBtn) {
+    pasteClipboardBtn.addEventListener('click', async () => {
+      const resumeInput = document.getElementById('resumeInput');
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          pasteStatus.textContent = 'Clipboard access isn\'t available in this browser — try Ctrl+V, or right-click → Paste.';
+          return;
+        }
+        const text = await navigator.clipboard.readText();
+        if (!text) {
+          pasteStatus.textContent = 'Clipboard looks empty — copy your resume/JD text first, then tap this again.';
+          return;
+        }
+        resumeInput.value = text;
+        resumeInput.focus();
+        pasteStatus.textContent = '✅ Pasted ' + text.length + ' characters.';
+      } catch (e) {
+        pasteStatus.textContent = 'Clipboard permission denied — tap "Allow" if your browser prompted, or try right-click → Paste inside the box instead.';
+      }
+    });
+  }
 
   // ---------- persona selection ----------
   document.querySelectorAll('.persona-btn').forEach(btn => {
