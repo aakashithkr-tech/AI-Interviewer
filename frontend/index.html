@@ -547,6 +547,7 @@
     <div>
       <div class="section-label">Interview duration</div>
       <div class="option-row" id="durationRow">
+        <button class="option-btn" data-value="10">10 min</button>
         <button class="option-btn" data-value="15">15 min</button>
         <button class="option-btn selected" data-value="30">30 min</button>
         <button class="option-btn" data-value="45">45 min</button>
@@ -1048,7 +1049,9 @@
   function renderPlan(){
     // Client-side illustrative breakdown — the actual interview stays
     // adaptive/time-boxed on the backend, this just previews the shape.
-    const total = Math.max(4, Math.round(durationMinutes / 3));
+    // Product requirement: every interview reaches at least 8 questions,
+    // even the fastest 10-minute one.
+    const total = Math.max(8, Math.round(durationMinutes / 2));
     let technical, behavioral;
     if (interviewType === 'Behavioral'){ behavioral = total - 1; technical = 1; }
     else if (interviewType === 'Mixed'){ technical = Math.ceil(total * 0.5); behavioral = total - technical; }
