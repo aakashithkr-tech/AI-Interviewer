@@ -10,22 +10,13 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// Serve the frontend directly, so http://localhost:3000 shows the UI
-// (frontend/index.html lives one level up from backend/server.js)
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 const PORT = process.env.PORT || 3000;
 
 // ---------- Gemini multi-key fallback ----------
-// GEMINI_API_KEYS="key1,key2,key3"  (or single GEMINI_API_KEY)
 const RAW_KEYS = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
 const API_KEYS = RAW_KEYS.split(',').map(k => k.trim()).filter(Boolean);
-// Try multiple models in order — if one model's quota is exhausted (common on
-// free tier), fall back to the next. gemini-2.0-flash-lite goes FIRST now:
-// it's the lower-latency model and the live per-turn loop (the thing the
-// candidate is actually waiting on) cares about speed far more than the
-// marginal quality gain of full "flash". Override with GEMINI_MODELS in
-// .env (comma-separated) if you want a different order.
 const RAW_MODELS = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite,gemini-2.0-flash';
 const MODELS = RAW_MODELS.split(',').map(m => m.trim()).filter(Boolean);
 const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'text-embedding-004';
@@ -34,10 +25,6 @@ if (API_KEYS.length === 0) {
   console.warn('[WARN] No GEMINI_API_KEY / GEMINI_API_KEYS set. /api/interview calls will fail until you add one.');
 }
 
-// Guards every outbound LLM call with a hard timeout — without this, a single
-// hung/slow key or model attempt can block the whole request indefinitely,
-// which is what was surfacing to the frontend as a generic "could not reach
-// backend" (the connection just never resolved either way).
 async function fetchWithTimeout(url, options, timeoutMs = 12000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -51,16 +38,6 @@ async function fetchWithTimeout(url, options, timeoutMs = 12000) {
   }
 }
 
-// Per-attempt timeout AND a global wall-clock budget for the whole
-// model x key cascade. Previously only the per-attempt timeout existed
-// (7000ms) — with 2 models x N keys, a bad key/model combo could still eat
-// 7s * 2 * N before ever reaching Groq. That's the single biggest
-// contributor to "next question feels slow": every one of those seconds is
-// dead air after the candidate already stopped talking. Now the whole
-// Gemini cascade is capped at GEMINI_BUDGET_MS (default 4500ms) — as soon as
-// that's exceeded we stop trying more models/keys and fail over to Groq
-// (or the raw error) immediately, instead of grinding through every
-// remaining combination.
 async function callGemini(systemPrompt, userPrompt, { json = true, maxOutputTokens = 1024, attemptTimeoutMs = 5000, budgetMs = 4500 } = {}) {
   let lastErr = null;
   const cascadeStart = Date.now();
@@ -84,16 +61,11 @@ async function callGemini(systemPrompt, userPrompt, { json = true, maxOutputToke
             ...(json ? { responseMimeType: 'application/json' } : {})
           }
         };
-        // Remaining budget also caps this specific attempt, so the last
-        // attempt before the budget expires can't itself blow the budget.
         const remainingBudget = budgetMs - (Date.now() - cascadeStart);
         const thisAttemptTimeout = Math.max(1000, Math.min(attemptTimeoutMs, remainingBudget));
         const res = await fetchWithTimeout(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-goog-api-key': key
-          },
+          headers: { 'Content-Type': 'application/json', 'X-goog-api-key': key },
           body: JSON.stringify(body)
         }, thisAttemptTimeout);
         if (!res.ok) {
@@ -122,10 +94,7 @@ async function callGroq(systemPrompt, userPrompt, { json = true, maxOutputTokens
   try {
     const res = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [
@@ -173,12 +142,8 @@ async function callLLM(systemPrompt, userPrompt, opts = {}) {
 
 function safeParseJSON(text) {
   const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (e) {
-    console.error('JSON parse failed, raw text:', cleaned.slice(0, 300));
-    return null;
-  }
+  try { return JSON.parse(cleaned); }
+  catch (e) { console.error('JSON parse failed, raw text:', cleaned.slice(0, 300)); return null; }
 }
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -198,12 +163,6 @@ function slugKey(name) {
   return (name || 'guest').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'guest';
 }
 
-// Embeddings are only used for cross-day memory (once at /start) and for
-// persisting concepts after the interview ends — never on the hot per-turn
-// path. Still, they previously used bare `fetch` with no timeout, so a
-// hung embedding call could stall /start indefinitely. Now timeout-guarded
-// and short (3s) since a missed embedding just falls back to keyword
-// overlap scoring, which is fine.
 async function embedText(text) {
   if (!API_KEYS.length) return null;
   for (const key of API_KEYS) {
@@ -241,20 +200,15 @@ async function retrieveCrossDayMemory(candidateKey, topic, k = 3) {
   const store = loadStore();
   const candidate = store[candidateKey];
   if (!candidate || !candidate.sessions || !candidate.sessions.length) return { items: [], dayCount: 0 };
-
   const allConcepts = [];
   candidate.sessions.forEach((s, idx) => {
     (s.concepts || []).forEach(c => allConcepts.push({ ...c, day: idx + 1, sessionTopic: s.topic, date: s.date }));
   });
   if (!allConcepts.length) return { items: [], dayCount: candidate.sessions.length };
-
   const queryVec = await embedText(topic);
   let scored;
-  if (queryVec) {
-    scored = allConcepts.map(c => ({ c, score: cosineSim(queryVec, c.embedding) }));
-  } else {
-    scored = allConcepts.map(c => ({ c, score: keywordOverlapScore(topic, c.tag + ' ' + (c.summary || '')) }));
-  }
+  if (queryVec) scored = allConcepts.map(c => ({ c, score: cosineSim(queryVec, c.embedding) }));
+  else scored = allConcepts.map(c => ({ c, score: keywordOverlapScore(topic, c.tag + ' ' + (c.summary || '')) }));
   scored.sort((a, b) => b.score - a.score);
   const items = scored.slice(0, k).filter(s => s.score > 0.15).map(s => s.c);
   return { items, dayCount: candidate.sessions.length };
@@ -269,11 +223,6 @@ async function persistSession(candidateKey, session, report) {
     if (!byTag.has(t.topicTag)) byTag.set(t.topicTag, []);
     byTag.get(t.topicTag).push(t);
   });
-  // Concept embeddings only happen once, at the very end of the interview
-  // (never per-turn), and this call is fire-and-forget from the /report
-  // route (it doesn't block the response) — but there's no reason to make
-  // the candidate's browser or the server wait on N sequential embedding
-  // calls when they're all independent. Parallelized with Promise.all.
   const tags = [...byTag.entries()];
   const concepts = await Promise.all(tags.map(async ([tag, turns]) => {
     const avgComp = Math.round(turns.reduce((a, t) => a + t.competence, 0) / turns.length);
@@ -287,10 +236,59 @@ async function persistSession(candidateKey, session, report) {
     topic: session.topic,
     date: new Date(session.startedAt).toISOString(),
     scores: report ? report.scores : null,
-    concepts
+    concepts,
+    practiceMode: !!session.practiceMode,
+    practiceFocus: session.practiceFocus || null
   });
   if (store[candidateKey].sessions.length > 60) store[candidateKey].sessions.shift();
   saveStore(store);
+}
+
+// ---------- Concept-trend memory (feature: dashboard "AI Interview Memory") ----------
+// Walks every past session in chronological order and, per concept tag,
+// keeps the last two avgCompetence data points so we can classify each
+// concept as improved / needs practice / re-test recommended. This is what
+// powers the "🧠 Your AI Interview Memory" dashboard card.
+function computeConceptTrends(candidateKey, limit = 6) {
+  const store = loadStore();
+  const candidate = store[candidateKey];
+  if (!candidate || !candidate.sessions || !candidate.sessions.length) return [];
+
+  const byTag = new Map(); // tag -> [{score, date}] chronological
+  candidate.sessions.forEach(s => {
+    (s.concepts || []).forEach(c => {
+      if (!byTag.has(c.tag)) byTag.set(c.tag, []);
+      byTag.get(c.tag).push({ score: c.avgCompetence, date: s.date });
+    });
+  });
+
+  const results = [];
+  for (const [tag, points] of byTag.entries()) {
+    const latest = points[points.length - 1];
+    const previous = points.length >= 2 ? points[points.length - 2] : null;
+    let status;
+    if (!previous) {
+      status = 'retest_recommended'; // only ever tested once — worth confirming
+    } else if (latest.score - previous.score >= 8) {
+      status = 'improved';
+    } else if (latest.score < 60) {
+      status = 'needs_practice';
+    } else if (previous.score - latest.score >= 8) {
+      status = 'retest_recommended'; // regressed — flag for another look
+    } else {
+      status = 'stable';
+    }
+    results.push({
+      tag,
+      latestScore: latest.score,
+      previousScore: previous ? previous.score : null,
+      lastSeen: latest.date,
+      status
+    });
+  }
+
+  results.sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
+  return results.slice(0, limit);
 }
 
 const sessions = new Map();
@@ -299,14 +297,51 @@ const MAX_QUESTIONS = parseInt(process.env.MAX_QUESTIONS || '20', 10);
 const TARGET_MINUTES = parseFloat(process.env.INTERVIEW_MINUTES || '10');
 const MIN_QUESTIONS_BEFORE_TIME_END = 5;
 
+const PRACTICE_MAX_QUESTIONS = 5;
+const PRACTICE_MIN_QUESTIONS = 3;
+const PRACTICE_TARGET_MINUTES = 8;
+
 const PERSONAS = {
   friendly: 'Friendly and encouraging. Use warm phrasing, gentle nudges, light positive reinforcement ("Nice, can you go a little deeper?").',
   strict: 'Strict and terse. No pleasantries. Point out gaps directly ("That is incomplete. Give an example.").',
   faang: 'FAANG-bar-raiser style. Frame questions as system design / real-world scenarios ("Imagine you are designing X. Continue."). High expectations, probing follow-ups.'
 };
 
-function buildSystemPrompt(persona, topic, memoryContext, targetMinutes, interviewType, experience, resumeContext) {
+function buildSystemPrompt(persona, topic, memoryContext, targetMinutes, interviewType, experience, resumeContext, practiceMode, practiceFocus) {
   targetMinutes = targetMinutes || TARGET_MINUTES;
+
+  if (practiceMode) {
+    return `You are an adaptive AI technical interviewer running a FOCUSED PRACTICE DRILL on exactly one concept: "${practiceFocus}".
+
+Persona / tone: ${PERSONAS[persona] || PERSONAS.friendly}
+Candidate experience level: ${experience || 'Intermediate'}.
+This is a SHORT, TARGETED re-test — exactly ${PRACTICE_MAX_QUESTIONS} questions total, ALL of them about "${practiceFocus}" specifically. Do NOT branch to other concepts (no breadth rule here — depth on this one topic is the entire point).
+${memoryContext ? `\n${memoryContext}\n` : ''}
+Your job every turn — keep this LIGHTWEIGHT, this is a live low-latency loop:
+1. Judge the candidate's latest answer for CORRECTNESS (correct / partial / incorrect) and COMPETENCE (0-100).
+2. Judge CONFIDENCE (0-100) from phrasing (hedging vs assertive).
+3. Ramp difficulty across the 5 questions: start foundational (level 1-2), end at a harder applied/scenario question (level 4-5) on the SAME concept — this is a deliberate difficulty ramp to test mastery, not a random walk.
+4. Give ONE short evidence-based feedback sentence.
+5. Write a short INTERNAL interviewer's note (5-12 words).
+6. Decide the next question — always still about "${practiceFocus}".
+7. topicTag MUST be "${practiceFocus}" (or a very close variant) on every turn — this drill's whole point is a clean before/after score on this exact concept.
+8. Set "done": true after exactly ${PRACTICE_MAX_QUESTIONS} questions have been asked (not before ${PRACTICE_MIN_QUESTIONS}).
+
+Always reply with STRICT JSON only, no markdown, matching this schema exactly:
+{
+  "verdict": "correct" | "partial" | "incorrect",
+  "competence": <0-100 integer>,
+  "confidence": <0-100 integer>,
+  "evidenceFeedback": "<ONE short sentence>",
+  "interviewerNote": "<short internal note, 5-12 words>",
+  "nextDifficulty": <1-5 integer>,
+  "nextQuestion": "<next question, or empty string if done>",
+  "topicTag": "${practiceFocus}",
+  "crossDayLink": false,
+  "done": <true|false>
+}`;
+  }
+
   return `You are an adaptive AI technical interviewer conducting a live spoken interview on the topic: "${topic}".
 
 Persona / tone: ${PERSONAS[persona] || PERSONAS.friendly}
@@ -348,7 +383,16 @@ Always reply with STRICT JSON only, no markdown, matching this schema exactly:
 }`;
 }
 
-function buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience, resumeContext) {
+function buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience, resumeContext, practiceMode, practiceFocus, practiceBaseline) {
+  if (practiceMode) {
+    return `Generate the FIRST question of a FOCUSED PRACTICE DRILL re-testing the concept "${practiceFocus}", for a candidate at ${experience || 'Intermediate'} level.${typeof practiceBaseline === 'number' ? ` Their score on this concept last time was ${practiceBaseline}%.` : ''} Start at a foundational difficulty (level 1-2 of 5) — this is a 5-question ramp that should end harder. Reply with STRICT JSON only:
+{
+  "nextQuestion": "<the opening question, in tone: ${PERSONAS[persona] || PERSONAS.friendly}>",
+  "nextDifficulty": 1,
+  "topicTag": "${practiceFocus}",
+  "crossDayLink": false
+}`;
+  }
   return `Generate the FIRST interview question for a live spoken ${interviewType || 'Technical'}-style interview on "${topic}", for a candidate at ${experience || 'Intermediate'} experience level.${memoryContext ? ` ${memoryContext}` : ''}${resumeContext ? `\nCandidate's resume / target job description:\n"""\n${resumeContext}\n"""\nIf it clearly connects to "${topic}", ground the opening question in something specific from it (a real project, technology, or responsibility they listed) instead of a generic textbook question.` : ''} Start at a medium-easy difficulty (level 2 of 5) to establish a baseline. If relevant past-day concepts were given above and one connects naturally to "${topic}", you may open with a light callback ("Last time you covered X — today let's build on that with ${topic}.") but keep the actual question itself foundational. Reply with STRICT JSON only:
 {
   "nextQuestion": "<the opening question, in tone: ${PERSONAS[persona] || PERSONAS.friendly}>",
@@ -375,54 +419,65 @@ app.post('/api/interview/start', async (req, res) => {
   try {
     const {
       topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '',
-      experience = 'Intermediate', interviewType = 'Technical', durationMinutes, resumeContext = ''
+      experience = 'Intermediate', interviewType = 'Technical', durationMinutes, resumeContext = '',
+      practiceFocus = '', practiceBaselineScore
     } = req.body || {};
     const sessionId = uuidv4();
     const candidateKey = slugKey(candidateName);
-    const targetMinutes = [15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES;
+    const isPractice = !!(practiceFocus && String(practiceFocus).trim());
+    const cleanPracticeFocus = String(practiceFocus || '').trim().slice(0, 80);
+    const effectiveTopic = isPractice ? `Focused practice: ${cleanPracticeFocus}` : topic;
+    const targetMinutes = isPractice
+      ? PRACTICE_TARGET_MINUTES
+      : ([15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES);
     const cleanResumeContext = String(resumeContext || '').trim().slice(0, 4000);
 
     const tMemStart = Date.now();
-    const memory = await retrieveCrossDayMemory(candidateKey, topic, 3);
+    const memory = isPractice ? { items: [], dayCount: 0 } : await retrieveCrossDayMemory(candidateKey, topic, 3);
     const memoryContext = formatMemoryContext(memory);
     const memMs = Date.now() - tMemStart;
 
     const tLlmStart = Date.now();
     const raw = await callLLM(
       'You are an interview question generator. Reply with strict JSON only.',
-      buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience, cleanResumeContext),
-      { maxOutputTokens: 250, attemptTimeoutMs: 5000, budgetMs: 4500 } // tiny schema — no need for a big budget/token cap
+      buildFirstQuestionPrompt(persona, effectiveTopic, memoryContext, interviewType, experience, cleanResumeContext, isPractice, cleanPracticeFocus, practiceBaselineScore),
+      { maxOutputTokens: 250, attemptTimeoutMs: 5000, budgetMs: 4500 }
     );
     const llmMs = Date.now() - tLlmStart;
     const parsed = safeParseJSON(raw) || {
-      nextQuestion: `Let's start with the basics — can you explain what ${topic} means in your own words?`,
-      nextDifficulty: 2,
-      topicTag: 'intro'
+      nextQuestion: isPractice
+        ? `Let's re-test ${cleanPracticeFocus} — can you explain the core idea in your own words?`
+        : `Let's start with the basics — can you explain what ${topic} means in your own words?`,
+      nextDifficulty: isPractice ? 1 : 2,
+      topicTag: isPractice ? cleanPracticeFocus : 'intro'
     };
 
     const session = {
       id: sessionId,
       candidateKey,
       candidateName,
-      topic,
+      topic: effectiveTopic,
       persona,
       experience,
       interviewType,
       targetMinutes,
       resumeContext: cleanResumeContext,
-      difficulty: parsed.nextDifficulty || 2,
+      difficulty: parsed.nextDifficulty || (isPractice ? 1 : 2),
       turns: [],
       createdAt: Date.now(),
       startedAt: Date.now(),
       lastActive: Date.now(),
       done: false,
       memory,
+      practiceMode: isPractice,
+      practiceFocus: isPractice ? cleanPracticeFocus : null,
+      practiceBaseline: isPractice && typeof practiceBaselineScore === 'number' ? practiceBaselineScore : null,
       _pendingQuestion: parsed.nextQuestion
     };
     sessions.set(sessionId, session);
 
     const totalMs = Date.now() - t0;
-    console.log(`[latency] /start memMs=${memMs} llmMs=${llmMs} totalMs=${totalMs}`);
+    console.log(`[latency] /start memMs=${memMs} llmMs=${llmMs} totalMs=${totalMs} practiceMode=${isPractice}`);
 
     res.json({
       sessionId,
@@ -433,6 +488,8 @@ app.post('/api/interview/start', async (req, res) => {
       crossDayLink: !!parsed.crossDayLink,
       dayNumber: memory.dayCount + 1,
       linkedConcepts: memory.items.map(c => c.tag),
+      practiceMode: isPractice,
+      practiceFocus: session.practiceFocus,
       done: false,
       timingMs: { memMs, llmMs, totalMs }
     });
@@ -442,14 +499,6 @@ app.post('/api/interview/start', async (req, res) => {
   }
 });
 
-// Keeps only the last N turns verbatim, and folds anything older into a
-// compact one-line aggregate (tags + average competence) instead of full
-// Q&A text. Without this, transcript size — and therefore prompt tokens and
-// per-turn LLM latency — grows without bound as the interview goes on; by
-// question 15 the model was re-reading 14 full Q&A exchanges every single
-// turn just to decide question 15. Recent turns still get full detail since
-// that's what actually matters for "ask a harder follow-up on the same
-// thread" (rule 3) and "don't dig into one thread too long" (rule 4).
 const RECENT_TURNS_FULL_DETAIL = 4;
 function buildCompactTranscript(turns) {
   if (turns.length <= RECENT_TURNS_FULL_DETAIL) {
@@ -459,7 +508,6 @@ function buildCompactTranscript(turns) {
   }
   const older = turns.slice(0, turns.length - RECENT_TURNS_FULL_DETAIL);
   const recent = turns.slice(turns.length - RECENT_TURNS_FULL_DETAIL);
-
   const tagStats = new Map();
   older.forEach(t => {
     if (!tagStats.has(t.topicTag)) tagStats.set(t.topicTag, []);
@@ -467,12 +515,10 @@ function buildCompactTranscript(turns) {
   });
   const summaryLine = 'Earlier in this interview (Q1-Q' + older.length + '), covered: ' +
     [...tagStats.entries()].map(([tag, arr]) => `${tag} (avg ${Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)}%)`).join(', ') + '.';
-
   const recentText = recent.map((t, i) => {
     const qNum = older.length + i + 1;
     return `Q${qNum} (difficulty ${t.difficulty}): ${t.question}\nCandidate: ${t.answer}\nVerdict: ${t.verdict}, competence ${t.competence}, confidence ${t.confidence}`;
   }).join('\n\n');
-
   return summaryLine + '\n\n' + recentText;
 }
 
@@ -488,19 +534,18 @@ app.post('/api/interview/answer', async (req, res) => {
     const targetMinutes = session.targetMinutes || TARGET_MINUTES;
     const questionNumber = session.turns.length + 1;
     const elapsedMin = (Date.now() - session.startedAt) / 60000;
-    const overTime = elapsedMin >= targetMinutes && questionNumber > MIN_QUESTIONS_BEFORE_TIME_END;
-    const hitAbsoluteCap = questionNumber >= MAX_QUESTIONS;
 
-    // Lightweight, bounded-size transcript context — see buildCompactTranscript above.
-    // This keeps per-turn latency roughly flat instead of growing with interview length.
+    const maxQ = session.practiceMode ? PRACTICE_MAX_QUESTIONS : MAX_QUESTIONS;
+    const minQBeforeEnd = session.practiceMode ? PRACTICE_MIN_QUESTIONS : MIN_QUESTIONS_BEFORE_TIME_END;
+    const overTime = elapsedMin >= targetMinutes && questionNumber > minQBeforeEnd;
+    const hitAbsoluteCap = questionNumber >= maxQ;
+
     const transcript = buildCompactTranscript(session.turns);
-
     const memoryContext = formatMemoryContext(session.memory);
-
     const hasVisualForPrompt = typeof visualConfidence === 'number' && !Number.isNaN(visualConfidence);
 
     const userPrompt = `Topic: ${session.topic}
-Question number: ${questionNumber}
+Question number: ${questionNumber}${session.practiceMode ? ` of ${PRACTICE_MAX_QUESTIONS} (focused practice drill)` : ''}
 Elapsed time: ${elapsedMin.toFixed(1)} minutes of a ~${targetMinutes}-minute target
 Current difficulty: ${session.difficulty}
 
@@ -515,22 +560,13 @@ Evaluate this answer and produce the next step, per the schema. Keep evidenceFee
 
     const tLlmStart = Date.now();
     const raw = await callLLM(
-      buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience, session.resumeContext),
+      buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience, session.resumeContext, session.practiceMode, session.practiceFocus),
       userPrompt,
-      // This is the hottest path in the whole app — the candidate is staring
-      // at "Processing…" waiting on it. Small token budget (the schema is
-      // short), a short per-attempt timeout, and a tight overall cascade
-      // budget (4.5s) so a bad key/model never turns into multi-second dead
-      // air; if Gemini can't answer inside that budget we fail over to Groq
-      // (which is itself fast) rather than exhausting every combination.
       { maxOutputTokens: 350, attemptTimeoutMs: 4500, budgetMs: 4500 }
     );
     const llmMs = Date.now() - tLlmStart;
     const parsed = safeParseJSON(raw);
-
-    if (!parsed) {
-      return res.status(502).json({ error: 'Model returned unparsable response' });
-    }
+    if (!parsed) return res.status(502).json({ error: 'Model returned unparsable response' });
 
     const vocalConfidence = clamp(parsed.confidence, 0, 100, 50);
     const hasVisual = typeof visualConfidence === 'number' && !Number.isNaN(visualConfidence);
@@ -550,7 +586,7 @@ Evaluate this answer and produce the next step, per the schema. Keep evidenceFee
       evidenceFeedback: parsed.evidenceFeedback || '',
       interviewerNote: parsed.interviewerNote || '',
       difficulty: session.difficulty,
-      topicTag: parsed.topicTag || 'general',
+      topicTag: session.practiceMode ? session.practiceFocus : (parsed.topicTag || 'general'),
       crossDayLink: !!parsed.crossDayLink,
       timestamp: Date.now()
     };
@@ -577,6 +613,7 @@ Evaluate this answer and produce the next step, per the schema. Keep evidenceFee
       elapsedMinutes: Math.round(elapsedMin * 10) / 10,
       targetMinutes,
       crossDayLink: turn.crossDayLink,
+      practiceMode: session.practiceMode,
       done: isDone,
       timingMs: { llmMs, totalMs }
     });
@@ -586,7 +623,6 @@ Evaluate this answer and produce the next step, per the schema. Keep evidenceFee
   }
 });
 
-// ---- Heavy analysis lives ONLY here, run once at the end, never per-turn ----
 app.get('/api/interview/:sessionId/report', async (req, res) => {
   const t0 = Date.now();
   try {
@@ -614,14 +650,8 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
     const uniqueWeak = [...new Set(weakTopics)];
 
     const timeline = turns.map(t => ({
-      qNum: t.qNum,
-      question: t.question,
-      answer: t.answer,
-      verdict: t.verdict,
-      topicTag: t.topicTag,
-      difficulty: t.difficulty,
-      evidenceFeedback: t.evidenceFeedback,
-      crossDayLink: t.crossDayLink
+      qNum: t.qNum, question: t.question, answer: t.answer, verdict: t.verdict,
+      topicTag: t.topicTag, difficulty: t.difficulty, evidenceFeedback: t.evidenceFeedback, crossDayLink: t.crossDayLink
     }));
 
     const byTag = new Map();
@@ -630,16 +660,23 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
       byTag.get(t.topicTag).push(t.competence);
     });
     const skillRadar = [...byTag.entries()].map(([tag, arr]) => ({
-      tag,
-      score: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+      tag, score: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
       stars: Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) / 20 * 2) / 2
     }));
 
-    const interviewerNotes = turns.filter(t => t.interviewerNote).map(t => ({
-      qNum: t.qNum, note: t.interviewerNote, topicTag: t.topicTag
-    }));
-
+    const interviewerNotes = turns.filter(t => t.interviewerNote).map(t => ({ qNum: t.qNum, note: t.interviewerNote, topicTag: t.topicTag }));
     const crossDayLinksUsed = turns.filter(t => t.crossDayLink).length;
+
+    let practiceResult = null;
+    if (session.practiceMode) {
+      const afterScore = avg(turns.map(t => t.competence));
+      practiceResult = {
+        tag: session.practiceFocus,
+        before: typeof session.practiceBaseline === 'number' ? session.practiceBaseline : null,
+        after: afterScore,
+        improvement: typeof session.practiceBaseline === 'number' ? afterScore - session.practiceBaseline : null
+      };
+    }
 
     const report = {
       sessionId: session.id,
@@ -653,7 +690,9 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
       crossDayLinksUsed,
       dayNumber: (session.memory ? session.memory.dayCount : 0) + 1,
       revisionPlan: uniqueWeak.map(tag => ({ topic: tag, estimatedMinutes: 15 })),
-      totalEstimatedMinutes: uniqueWeak.length * 15
+      totalEstimatedMinutes: uniqueWeak.length * 15,
+      practiceMode: session.practiceMode,
+      practiceResult
     };
 
     persistSession(session.candidateKey, session, report).catch(e => console.error('[persist]', e.message));
@@ -715,13 +754,16 @@ app.get('/api/candidate/:name/history', (req, res) => {
   }
 
   res.json({
-    hasHistory: true,
-    readiness,
-    trend,
-    skillBars,
-    weakest,
+    hasHistory: true, readiness, trend, skillBars, weakest,
     sessions: recent.map(s => ({ topic: s.topic, date: s.date, score: s.scores.hiringProbability }))
   });
+});
+
+// ---- "🧠 Your AI Interview Memory" dashboard data ----
+app.get('/api/candidate/:name/memory', (req, res) => {
+  const key = slugKey(req.params.name);
+  const concepts = computeConceptTrends(key, 6);
+  res.json({ hasMemory: concepts.length > 0, concepts });
 });
 
 function clamp(val, min, max, fallback) {
