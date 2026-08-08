@@ -1271,6 +1271,9 @@
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
 
+      let silentRetries = 0;
+      const MAX_SILENT_RETRIES = 8; // ~ a couple minutes of patient re-listening before giving up
+
       function startOne(){
         recognition = new SpeechRecognition();
         recognition.lang = 'en-US';
@@ -1287,6 +1290,7 @@
             else interim += t;
           }
           const combined = (finalTranscript + ' ' + interim).trim();
+          if (combined) silentRetries = 0; // heard something — reset the patience counter
           if (!bargedIn && isAiSpeaking() && combined.replace(/\s/g, '').length >= 3){
             bargedIn = true;
             onBargeIn();
@@ -1295,9 +1299,15 @@
         };
         recognition.onerror = (e) => {
           recognizing = false;
-          if (e.error === 'no-speech' && isAiSpeaking() && interviewActive){
+          // Chrome's recognizer times out on plain silence ("no-speech") — this is
+          // NOT a real mic failure, it just means the candidate hasn't started
+          // talking yet (whether the AI is still speaking, or the candidate is
+          // pausing to think). Keep quietly re-listening either way, up to a cap,
+          // instead of dead-ending the interview on a normal pause.
+          if (e.error === 'no-speech' && interviewActive && silentRetries < MAX_SILENT_RETRIES){
+            silentRetries++;
             try { recognition.stop(); } catch(err) {}
-            startOne(); // AI still talking, candidate hasn't started — keep waiting quietly
+            startOne();
             return;
           }
           reject(e);
