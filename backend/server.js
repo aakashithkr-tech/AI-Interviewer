@@ -31,6 +31,23 @@ if (API_KEYS.length === 0) {
   console.warn('[WARN] No GEMINI_API_KEY / GEMINI_API_KEYS set. /api/interview calls will fail until you add one.');
 }
 
+// Guards every outbound LLM call with a hard timeout — without this, a single
+// hung/slow key or model attempt can block the whole request indefinitely,
+// which is what was surfacing to the frontend as a generic "could not reach
+// backend" (the connection just never resolved either way).
+async function fetchWithTimeout(url, options, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`timed out after ${timeoutMs}ms`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callGemini(systemPrompt, userPrompt, { json = true } = {}) {
   let lastErr = null;
   for (const model of MODELS) {
@@ -51,14 +68,14 @@ async function callGemini(systemPrompt, userPrompt, { json = true } = {}) {
             ...(json ? { responseMimeType: 'application/json' } : {})
           }
         };
-        const res = await fetch(url, {
+        const res = await fetchWithTimeout(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-goog-api-key': key
           },
           body: JSON.stringify(body)
-        });
+        }, 12000);
         if (!res.ok) {
           const text = await res.text();
           throw new Error(`[${model}] key #${i + 1} failed: ${res.status} ${text.slice(0, 200)}`);
@@ -68,7 +85,7 @@ async function callGemini(systemPrompt, userPrompt, { json = true } = {}) {
         if (!text) throw new Error(`[${model}] key #${i + 1} returned empty content`);
         return text;
       } catch (err) {
-        console.error(err.message);
+        console.error(`[${model}] key #${i + 1}:`, err.message);
         lastErr = err;
         // try next key, then next model
       }
@@ -85,7 +102,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 async function callGroq(systemPrompt, userPrompt, { json = true } = {}) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const res = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -101,7 +118,7 @@ async function callGroq(systemPrompt, userPrompt, { json = true } = {}) {
       max_tokens: 1024,
       ...(json ? { response_format: { type: 'json_object' } } : {})
     })
-  });
+  }, 12000);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Groq failed: ${res.status} ${text.slice(0, 200)}`);
