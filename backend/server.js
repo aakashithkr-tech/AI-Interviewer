@@ -520,7 +520,7 @@ app.post('/api/interview/start', async (req, res) => {
     const effectiveTopic = isPractice ? `Focused practice: ${cleanPracticeFocus}` : topic;
     const targetMinutes = isPractice
       ? PRACTICE_TARGET_MINUTES
-      : ([15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES);
+      : ([10, 15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES);
     const cleanResumeContext = String(resumeContext || '').trim().slice(0, 4000);
 
     const tMemStart = Date.now();

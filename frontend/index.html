@@ -44,6 +44,22 @@
   a{ color:inherit; }
   ::selection{ background:var(--brass-dim); color:var(--brass); }
 
+  /* ===== SHARED PREMIUM GLASS-CARD LOOK (dashboard/studio/history/profile) ===== */
+  .glass-card{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%),
+      var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+    transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+  .glass-card.hoverable:hover{
+    border-color:rgba(201,162,75,.4);
+    box-shadow:0 28px 70px -26px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px rgba(201,162,75,.12);
+    transform:translateY(-1px);
+  }
+
   /* ---------- brand / nav ---------- */
   .navbar{
     width:100%; max-width:1180px;
@@ -113,13 +129,15 @@
   .warn{ color:var(--red); font-size:13px; max-width:440px; }
 
   /* ===== WELCOME / DASHBOARD ===== */
-  #welcome{ gap:32px; padding-top:36px; }
-  #welcome h1{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(28px,4vw,42px); margin:0; }
-  #welcome .sub{ color:var(--ink-dim); font-size:15px; margin-top:6px; }
+  #welcome, #dashboard, #studio, #history, #profile{ gap:32px; padding-top:36px; }
+  #welcome h1, #dashboard h1, #studio h1, #history h1, #profile h1{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(28px,4vw,42px); margin:0; }
+  #welcome .sub, #dashboard .sub, #studio .sub, #history .sub, #profile .sub{ color:var(--ink-dim); font-size:15px; margin-top:6px; }
   .returning-banner{
-    display:none; align-items:center; gap:16px; background:var(--bg-panel);
-    border:1px solid var(--line); border-left:3px solid var(--brass); border-radius:10px;
-    padding:16px 20px;
+    display:none; align-items:center; gap:16px;
+    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-left:3px solid var(--brass); border-radius:12px;
+    padding:18px 22px;
+    box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
   }
   .returning-banner.show{ display:flex; }
   .returning-banner .day-num{ font-family:'Fraunces',serif; font-size:26px; color:var(--brass); line-height:1; }
@@ -336,8 +354,11 @@
   .option-btn:hover{ border-color:var(--ink-dim); color:var(--ink); }
   .option-btn.selected{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); }
   .plan-card{
-    margin-top:16px; max-width:420px; background:var(--bg-panel-2); border:1px solid var(--line-soft);
-    border-radius:12px; padding:16px 18px;
+    margin-top:16px; max-width:420px;
+    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%), var(--bg-panel-2);
+    border:1px solid var(--line-soft);
+    border-radius:12px; padding:18px 20px;
+    box-shadow:0 18px 44px -24px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.03);
   }
   .plan-card .pc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:10px; }
   .plan-card .pc-row{ display:flex; justify-content:space-between; font-size:13px; color:var(--ink-dim); padding:4px 0; }
@@ -367,10 +388,14 @@
   .diff-toast.show{ opacity:1; transform:translateY(0); }
 
   /* ===== DASHBOARD: readiness / recent interviews ===== */
-  .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:22px; }
   @media (max-width:820px){ .dash-grid{ grid-template-columns:1fr; } }
-  .readiness-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
-  .readiness-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
+  .readiness-card{
+    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-radius:var(--radius); padding:24px;
+    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .readiness-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:14px; }
   .readiness-top{ display:flex; align-items:baseline; gap:10px; }
   .readiness-num{ font-family:'Fraunces',serif; font-size:40px; color:var(--brass); }
   .readiness-lbl{ font-size:12.5px; color:var(--ink-dim); }
@@ -385,9 +410,13 @@
   .weak-callout .wc-text b{ color:var(--red); }
   .weak-callout .btn-ghost{ padding:8px 14px; font-size:12px; border-color:var(--red); color:var(--red); white-space:nowrap; }
 
-  .recent-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
-  .recent-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
-  .recent-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px dashed var(--line-soft); font-size:13px; }
+  .recent-card{
+    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-radius:var(--radius); padding:24px;
+    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .recent-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:14px; }
+  .recent-row{ display:flex; align-items:center; justify-content:space-between; padding:11px 2px; border-bottom:1px dashed var(--line-soft); font-size:13px; transition:padding .15s ease; }
   .recent-row:last-child{ border-bottom:none; }
   .recent-row .rr-topic{ color:var(--ink); }
   .recent-row .rr-date{ color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; font-size:11px; }
@@ -420,8 +449,12 @@
   @keyframes spin-dot{ 0%{opacity:1;} 50%{opacity:.3;} 100%{opacity:1;} }
 
   /* ===== AI INTERVIEW MEMORY (dashboard) ===== */
-  .memory-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-top:-12px; }
-  .memory-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
+  .memory-card{
+    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-radius:var(--radius); padding:24px; margin-top:-8px;
+    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .memory-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:14px; }
   .memory-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px dashed var(--line-soft); font-size:13px; flex-wrap:wrap; }
   .memory-row:last-child{ border-bottom:none; }
   .memory-row .mr-left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -450,12 +483,120 @@
   .practice-result-row .pr-num{ font-family:'Fraunces',serif; font-size:32px; color:var(--ink); }
   .practice-result-row .pr-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin-top:2px; }
   .practice-result-row .pr-arrow{ font-size:26px; color:var(--ink-faint); }
+
+  /* ===== NAV LINKS (multi-page shell) ===== */
+  .nav-links{ display:flex; align-items:center; gap:4px; }
+  .nav-links button{
+    background:none; border:none; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace;
+    font-size:12px; letter-spacing:.03em; padding:7px 13px; border-radius:8px; cursor:pointer; transition:.15s;
+  }
+  .nav-links button:hover{ color:var(--ink); background:var(--bg-panel); }
+  .nav-links button.active{ color:var(--brass); background:var(--brass-dim); }
+
+  /* ===== AUTH SCREENS (login / signup) ===== */
+  #login, #signup{ align-items:center; justify-content:center; text-align:center; gap:0; min-height:70vh; }
+  .auth-card{
+    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)), var(--bg-panel);
+    border:1px solid var(--line); border-radius:20px; padding:44px 40px; width:100%; max-width:400px;
+    display:flex; flex-direction:column; gap:16px; align-items:center;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+    backdrop-filter:blur(6px);
+  }
+  .auth-mark{
+    width:48px; height:48px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #3a3f4c, #12151c 70%);
+    border:1px solid var(--brass); box-shadow:0 0 20px rgba(201,162,75,.3);
+  }
+  .auth-card h1{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; margin:2px 0 0; }
+  .auth-card .sub{ color:var(--ink-dim); font-size:13px; margin:-8px 0 2px; }
+  .auth-field{ display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; }
+  .auth-field label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); }
+  .auth-field .pw-wrap{ position:relative; }
+  .auth-field .pw-wrap input{ padding-right:42px; }
+  .auth-field .pw-toggle{
+    position:absolute; right:12px; top:50%; transform:translateY(-50%);
+    background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:13px; padding:4px;
+  }
+  .auth-row-between{ display:flex; justify-content:space-between; align-items:center; width:100%; font-size:12.5px; color:var(--ink-dim); }
+  .auth-divider{ display:flex; align-items:center; gap:10px; width:100%; color:var(--ink-faint); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin:2px 0; }
+  .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .auth-switch{ font-size:13px; color:var(--ink-dim); }
+  .auth-switch a{ color:var(--brass); text-decoration:none; cursor:pointer; }
+  .auth-switch a:hover{ text-decoration:underline; }
+  .demo-accounts{ width:100%; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .demo-accounts button{
+    background:var(--bg); border:1px solid var(--line-soft); color:var(--ink-dim);
+    padding:6px 12px; border-radius:20px; font-size:11.5px; cursor:pointer; font-family:'IBM Plex Mono',monospace;
+  }
+  .demo-accounts button:hover{ border-color:var(--teal); color:var(--teal); }
+
+  /* ===== DASHBOARD: quick action cards ===== */
+  .quick-actions-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:620px){ .quick-actions-grid{ grid-template-columns:1fr; } }
+  .qa-card{
+    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-radius:var(--radius); padding:24px;
+    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+    cursor:pointer; transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    text-align:left; display:flex; flex-direction:column; gap:7px;
+  }
+  .qa-card:hover{
+    border-color:rgba(201,162,75,.4); transform:translateY(-2px);
+    box-shadow:0 28px 70px -26px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px rgba(201,162,75,.15);
+  }
+  .qa-card .qa-icon{ font-size:27px; }
+  .qa-card .qa-title{ font-family:'Fraunces',serif; font-size:19px; color:var(--ink); }
+  .qa-card .qa-sub{ font-size:12.5px; color:var(--ink-dim); }
+
+  /* ===== HISTORY PAGE ===== */
+  .history-list{ display:flex; flex-direction:column; gap:14px; }
+  .history-row{
+    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+    transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+  .history-row:hover{
+    border-color:rgba(201,162,75,.3); transform:translateY(-1px);
+    box-shadow:0 24px 60px -24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .history-row .hr-topic{ font-family:'Fraunces',serif; font-size:16px; color:var(--ink); }
+  .history-row .hr-date{ font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
+  .history-row .hr-score{ font-family:'Fraunces',serif; font-size:26px; }
+  .history-row .hr-score.good{ color:var(--teal); }
+  .history-row .hr-score.mid{ color:var(--brass); }
+  .history-row .hr-score.low{ color:var(--red); }
+  .history-row .hr-score-lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); text-align:center; }
+
+  /* ===== PROFILE PAGE ===== */
+  .profile-card{
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-radius:20px;
+    padding:36px; display:flex; flex-direction:column; align-items:center; gap:11px; max-width:420px;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .profile-card .profile-avatar{
+    width:68px; height:68px; border-radius:50%; background:var(--brass); color:#1a1509;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:23px;
+    box-shadow:0 0 24px rgba(201,162,75,.35);
+  }
+  .profile-card .profile-name{ font-family:'Fraunces',serif; font-size:22px; }
+  .profile-stats-row{ display:flex; gap:28px; margin-top:10px; }
+  .profile-stats-row .ps-num{ font-family:'Fraunces',serif; font-size:24px; color:var(--brass); text-align:center; }
+  .profile-stats-row .ps-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); text-align:center; }
 </style>
 </head>
 <body>
 
   <div class="navbar">
     <div class="brand"><div class="mark"></div><span class="word">Interview Room</span><span class="tag">Assessment Platform</span></div>
+    <nav class="nav-links" id="navLinks" style="display:none;">
+      <button type="button" data-nav="dashboard">Dashboard</button>
+      <button type="button" data-nav="studio">Interview Studio</button>
+      <button type="button" data-nav="history">History</button>
+      <button type="button" data-nav="profile">Profile</button>
+    </nav>
     <div class="nav-right">
       <span class="status"><span class="dot" id="connDot"></span><span id="connLabel">idle</span></span>
       <span class="mono" id="sessionLabel" style="display:none;"></span>
@@ -494,27 +635,81 @@
 
   <!-- ===================== LOGIN SCREEN ===================== -->
   <div class="screen" id="login">
-    <div class="login-card">
-      <div class="login-mark"></div>
-      <h1>Sign in to interview room</h1>
-      <p class="sub">Voice-first AI interviews with live posture &amp; confidence scoring.</p>
+    <div class="auth-card">
+      <div class="auth-mark"></div>
+      <h1>Welcome back</h1>
+      <p class="sub">Sign in to your account</p>
 
-      <div class="field-group">
-        <label for="nameInput">Your name</label>
-        <input type="text" id="nameInput" placeholder="e.g. Aakash" autocomplete="name" />
+      <div class="auth-field">
+        <label for="loginNameInput">Full name</label>
+        <input type="text" id="loginNameInput" placeholder="e.g. Aakashi Thakur" autocomplete="name" />
+      </div>
+      <div class="auth-field">
+        <label for="loginEmailInput">Email address (optional)</label>
+        <input type="text" id="loginEmailInput" placeholder="you@example.com" autocomplete="email" />
+      </div>
+      <div class="auth-field">
+        <label for="loginPasswordInput">Password (optional)</label>
+        <div class="pw-wrap">
+          <input type="password" id="loginPasswordInput" placeholder="••••••••" autocomplete="current-password" />
+          <button type="button" class="pw-toggle" data-toggle-for="loginPasswordInput">👁</button>
+        </div>
+      </div>
+      <div class="auth-row-between">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rememberMeCheck" checked style="accent-color:var(--brass);" /> Remember me</label>
       </div>
 
-      <button class="btn-primary" id="continueBtn">Continue</button>
-      <p class="demo-note">Demo account — no signup, no password. Your name personalizes this session and links your progress across days, stored on the server against that name only.</p>
+      <button class="btn-primary" id="continueBtn">Sign In →</button>
+
+      <div class="demo-accounts">
+        <button type="button" class="demo-account-btn" data-demo-name="Aakashi Thakur">Demo: Aakashi</button>
+        <button type="button" class="demo-account-btn" data-demo-name="Rahul Verma">Demo: Rahul</button>
+        <button type="button" class="demo-account-btn" data-demo-name="Guest Candidate">Continue as Guest</button>
+      </div>
+
+      <p class="demo-note">Only your name is used to save progress — email/password are for this demo's login feel and aren't verified against anything.</p>
       <p class="warn" id="supportWarning" style="display:none;"></p>
+      <p class="auth-switch">Don't have an account? <a id="goToSignup">Sign up</a></p>
+    </div>
+  </div>
+
+  <!-- ===================== SIGNUP SCREEN ===================== -->
+  <div class="screen" id="signup">
+    <div class="auth-card">
+      <div class="auth-mark"></div>
+      <h1>Create your account</h1>
+      <p class="sub">Start practicing with your AI interviewer</p>
+
+      <div class="auth-field">
+        <label for="signupNameInput">Full name</label>
+        <input type="text" id="signupNameInput" placeholder="e.g. Aakashi Thakur" autocomplete="name" />
+      </div>
+      <div class="auth-field">
+        <label for="signupEmailInput">Email address (optional)</label>
+        <input type="text" id="signupEmailInput" placeholder="you@example.com" autocomplete="email" />
+      </div>
+      <div class="auth-field">
+        <label for="signupPasswordInput">Password (optional)</label>
+        <div class="pw-wrap">
+          <input type="password" id="signupPasswordInput" placeholder="••••••••" autocomplete="new-password" />
+          <button type="button" class="pw-toggle" data-toggle-for="signupPasswordInput">👁</button>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="signupContinueBtn">Create Account →</button>
+
+      <p class="demo-note">Same demo model as sign-in — your name links your interview history across sessions, nothing else is stored server-side.</p>
+      <p class="warn" id="signupSupportWarning" style="display:none;"></p>
+      <p class="auth-switch">Already have an account? <a id="goToLogin">Sign in</a></p>
     </div>
   </div>
 
   <!-- ===================== WELCOME / DASHBOARD ===================== -->
-  <div class="screen" id="welcome">
+  <!-- ===================== DASHBOARD ===================== -->
+  <div class="screen" id="dashboard">
     <div>
       <h1 id="greeting">Hey there 👋</h1>
-      <p class="sub">Ready to start your AI interview?</p>
+      <p class="sub">Where you're at, and what to do next.</p>
     </div>
 
     <div class="returning-banner" id="returningBanner">
@@ -525,14 +720,6 @@
       <div>
         <div class="rb-text" id="rbText">Welcome back — last time you covered <b>—</b>.</div>
         <div class="rb-tags" id="rbTags"></div>
-      </div>
-    </div>
-
-    <div class="returning-banner practice-banner" id="practiceBanner" style="border-left-color:var(--red);">
-      <div class="practice-banner-icon">🎯</div>
-      <div>
-        <div class="rb-text">Practice Mode: <b id="practiceBannerTag">—</b><span id="practiceBannerBaseline"></span></div>
-        <button class="btn-ghost" id="practiceBannerCancel" style="margin-top:8px;padding:6px 12px;font-size:11.5px;">Cancel practice mode</button>
       </div>
     </div>
 
@@ -553,13 +740,45 @@
       </div>
     </div>
 
+    <div>
+      <div class="section-label">Quick actions</div>
+      <div class="quick-actions-grid">
+        <button type="button" class="qa-card" id="qaStartInterview">
+          <div class="qa-icon">🎙️</div>
+          <div class="qa-title">Start Interview</div>
+          <div class="qa-sub">Practice with your AI interviewer</div>
+        </button>
+        <button type="button" class="qa-card" id="qaViewHistory">
+          <div class="qa-icon">📊</div>
+          <div class="qa-title">View History</div>
+          <div class="qa-sub" id="qaHistorySub">See your past interviews</div>
+        </button>
+      </div>
+    </div>
+
     <div class="memory-card" id="memoryCard" style="display:none;">
       <div class="rc-title">🧠 Your AI Interview Memory</div>
       <div id="memoryConceptsList"></div>
     </div>
+  </div>
+
+  <!-- ===================== INTERVIEW STUDIO (setup) ===================== -->
+  <div class="screen" id="studio">
+    <div>
+      <h1>Interview Studio</h1>
+      <p class="sub">Build your interview — pick a subject, style, and length.</p>
+    </div>
+
+    <div class="returning-banner practice-banner" id="practiceBanner" style="border-left-color:var(--red);">
+      <div class="practice-banner-icon">🎯</div>
+      <div>
+        <div class="rb-text">Practice Mode: <b id="practiceBannerTag">—</b><span id="practiceBannerBaseline"></span></div>
+        <button class="btn-ghost" id="practiceBannerCancel" style="margin-top:8px;padding:6px 12px;font-size:11.5px;">Cancel practice mode</button>
+      </div>
+    </div>
 
     <div>
-      <div class="section-label">Choose a subject</div>
+      <div class="section-label">Step 1 — What are you preparing for?</div>
       <div class="chip-grid" id="subjectChips">
         <button class="subject-chip" data-topic="Machine Learning Fundamentals">🧠 Machine Learning</button>
         <button class="subject-chip" data-topic="Retrieval-Augmented Generation & AI Agents">🤖 RAG & AI Agents</button>
@@ -577,7 +796,7 @@
     </div>
 
     <div>
-      <div class="section-label">Interviewer persona</div>
+      <div class="section-label">Step 2 — Interview style</div>
       <div class="persona-row">
         <button class="persona-btn selected" data-persona="friendly">😊 Friendly</button>
         <button class="persona-btn" data-persona="strict">😐 Strict</button>
@@ -586,7 +805,7 @@
     </div>
 
     <div>
-      <div class="section-label">Experience level</div>
+      <div class="section-label">Step 3 — Experience</div>
       <div class="option-row" id="experienceRow">
         <button class="option-btn" data-value="Beginner">Beginner</button>
         <button class="option-btn selected" data-value="Intermediate">Intermediate</button>
@@ -595,7 +814,7 @@
     </div>
 
     <div>
-      <div class="section-label">Interview type</div>
+      <div class="section-label">Step 4 — Interview type</div>
       <div class="option-row" id="typeRow">
         <button class="option-btn selected" data-value="Technical">○ Technical</button>
         <button class="option-btn" data-value="Behavioral">○ Behavioral</button>
@@ -605,8 +824,9 @@
     </div>
 
     <div>
-      <div class="section-label">Interview duration</div>
+      <div class="section-label">Step 5 — Duration</div>
       <div class="option-row" id="durationRow">
+        <button class="option-btn" data-value="10">10 min</button>
         <button class="option-btn" data-value="15">15 min</button>
         <button class="option-btn selected" data-value="30">30 min</button>
         <button class="option-btn" data-value="45">45 min</button>
@@ -664,6 +884,33 @@
       <summary>Backend URL</summary>
       <input type="text" id="apiBaseInput" class="mono" placeholder="http://localhost:3000" />
     </details>
+  </div>
+
+  <!-- ===================== HISTORY ===================== -->
+  <div class="screen" id="history">
+    <div>
+      <h1>Interview History</h1>
+      <p class="sub">How you've been doing across past sessions.</p>
+    </div>
+    <div id="historyEmpty" class="dash-empty" style="display:none;">No interviews yet — head to Interview Studio to start your first one.</div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+  <!-- ===================== PROFILE ===================== -->
+  <div class="screen" id="profile">
+    <div>
+      <h1>Profile</h1>
+      <p class="sub">Your account for this demo.</p>
+    </div>
+    <div class="profile-card">
+      <div class="profile-avatar" id="profileAvatar">?</div>
+      <div class="profile-name" id="profileName">—</div>
+      <div class="profile-stats-row">
+        <div><div class="ps-num" id="profileReadiness">—</div><div class="ps-lbl">Readiness</div></div>
+        <div><div class="ps-num" id="profileCount">—</div><div class="ps-lbl">Interviews</div></div>
+      </div>
+      <button class="btn-ghost" id="profileSignoutBtn" style="margin-top:14px;">Sign out</button>
+    </div>
   </div>
 
   <!-- ===================== INTERVIEW ROOM ===================== -->
@@ -877,10 +1124,42 @@
   let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
 
   // ---------- screens ----------
+  const NAV_SCREENS = ['dashboard', 'studio', 'history', 'profile']; // screens that get a navbar link
   function showScreen(id){
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    // navbar links: only visible once logged in, hidden entirely during a live
+    // interview (room) so a candidate can't accidentally navigate off mid-answer.
+    const navLinks = document.getElementById('navLinks');
+    if (userName && id !== 'room'){
+      navLinks.style.display = 'flex';
+      document.querySelectorAll('#navLinks button').forEach(b => {
+        b.classList.toggle('active', b.dataset.nav === id);
+      });
+    } else {
+      navLinks.style.display = 'none';
+    }
   }
+  function goToDashboard(){
+    showScreen('dashboard');
+    loadReturningBanner();
+    loadDashboardData();
+    loadMemoryData();
+  }
+  function goToStudio(){ showScreen('studio'); }
+  function goToHistory(){ showScreen('history'); loadHistoryPage(); }
+  function goToProfile(){ showScreen('profile'); loadProfilePage(); }
+  document.querySelectorAll('#navLinks button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.nav;
+      if (target === 'dashboard') goToDashboard();
+      else if (target === 'studio') goToStudio();
+      else if (target === 'history') goToHistory();
+      else if (target === 'profile') goToProfile();
+    });
+  });
+  document.getElementById('qaStartInterview').addEventListener('click', goToStudio);
+  document.getElementById('qaViewHistory').addEventListener('click', goToHistory);
   function setConn(label, live){
     document.getElementById('connLabel').textContent = label;
     document.getElementById('connDot').classList.toggle('live', !!live);
@@ -924,7 +1203,7 @@
     stopInterview();
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
-    showScreen('welcome');
+    goToDashboard();
   });
 
   // ---------- login ----------
@@ -942,26 +1221,40 @@
     if (saved){
       userName = saved;
       setLoggedInUI();
-      showScreen('welcome');
-      loadReturningBanner();
-      loadDashboardData();
-      loadMemoryData();
+      goToDashboard();
       warmUpBackend();
     }
   }
-  document.getElementById('continueBtn').addEventListener('click', () => {
-    const name = document.getElementById('nameInput').value.trim();
-    if (!name){ document.getElementById('nameInput').focus(); return; }
+  function completeLogin(name){
+    if (!name) return;
     userName = name;
     if (window.localStorage) localStorage.setItem('interview_user_name', name);
     setLoggedInUI();
-    showScreen('welcome');
-    loadReturningBanner();
-    loadDashboardData();
-    loadMemoryData();
+    goToDashboard();
     warmUpBackend();
+  }
+  document.getElementById('continueBtn').addEventListener('click', () => {
+    const name = document.getElementById('loginNameInput').value.trim();
+    if (!name){ document.getElementById('loginNameInput').focus(); return; }
+    completeLogin(name);
   });
-  document.getElementById('nameInput').addEventListener('keydown', (e) => {
+  document.getElementById('signupContinueBtn').addEventListener('click', () => {
+    const name = document.getElementById('signupNameInput').value.trim();
+    if (!name){ document.getElementById('signupNameInput').focus(); return; }
+    completeLogin(name);
+  });
+  document.getElementById('goToSignup').addEventListener('click', () => showScreen('signup'));
+  document.getElementById('goToLogin').addEventListener('click', () => showScreen('login'));
+  document.querySelectorAll('.pw-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(btn.dataset.toggleFor);
+      input.type = input.type === 'password' ? 'text' : 'password';
+    });
+  });
+  document.querySelectorAll('.demo-account-btn').forEach(btn => {
+    btn.addEventListener('click', () => completeLogin(btn.dataset.demoName));
+  });
+  document.getElementById('loginNameInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('continueBtn').click();
   });
   document.getElementById('signoutLink').addEventListener('click', (e) => {
@@ -970,10 +1263,14 @@
     if (window.localStorage) localStorage.removeItem('interview_user_name');
     userName = '';
     document.getElementById('userChip').style.display = 'none';
-    document.getElementById('nameInput').value = '';
+    document.getElementById('navLinks').style.display = 'none';
+    document.getElementById('loginNameInput').value = '';
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
     showScreen('login');
+  });
+  document.getElementById('profileSignoutBtn').addEventListener('click', () => {
+    document.getElementById('signoutLink').click();
   });
   tryAutoLogin();
 
@@ -1060,7 +1357,55 @@
           list.appendChild(row);
         });
       }
+
+      const qaSub = document.getElementById('qaHistorySub');
+      if (qaSub) qaSub.textContent = (data.sessions ? data.sessions.length : 0) + ' interview' + (data.sessions && data.sessions.length === 1 ? '' : 's');
     } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
+  }
+
+  // ---------- history page (reuses the same /history endpoint the dashboard uses) ----------
+  async function loadHistoryPage(){
+    const list = document.getElementById('historyList');
+    const empty = document.getElementById('historyEmpty');
+    list.innerHTML = '';
+    empty.style.display = 'none';
+    if (!userName) return;
+    try {
+      const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/history');
+      const data = await res.json();
+      if (!data.hasHistory || !data.sessions || !data.sessions.length){
+        empty.style.display = 'block';
+        return;
+      }
+      data.sessions.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'history-row';
+        row.innerHTML =
+          '<div><div class="hr-topic">' + s.topic + '</div><div class="hr-date">' + fmtDate(s.date) + '</div></div>' +
+          '<div style="text-align:center;"><div class="hr-score ' + scoreClass(s.score) + '">' + s.score + '</div><div class="hr-score-lbl">score</div></div>';
+        list.appendChild(row);
+      });
+    } catch (e) { empty.style.display = 'block'; empty.textContent = 'Could not load history — check your connection and try again.'; }
+  }
+
+  // ---------- profile page ----------
+  async function loadProfilePage(){
+    document.getElementById('profileAvatar').textContent = initials(userName);
+    document.getElementById('profileName').textContent = userName;
+    document.getElementById('profileReadiness').textContent = '—';
+    document.getElementById('profileCount').textContent = '—';
+    if (!userName) return;
+    try {
+      const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/history');
+      const data = await res.json();
+      if (data.hasHistory){
+        document.getElementById('profileReadiness').textContent = data.readiness + '%';
+        document.getElementById('profileCount').textContent = (data.sessions || []).length;
+      } else {
+        document.getElementById('profileReadiness').textContent = '—';
+        document.getElementById('profileCount').textContent = '0';
+      }
+    } catch (e) { /* not fatal — profile still shows name */ }
   }
 
   // ---------- 🧠 AI Interview Memory (concept trends across all past sessions) ----------
@@ -1125,6 +1470,7 @@
   // / memory-card "Practice →" buttons. Also enters practice mode so the next
   // interview started is a focused 5-question re-test drill on this concept.
   function selectTopicForPractice(topic, baselineScore){
+    goToStudio();
     practiceFocus = topic;
     practiceBaselineScore = typeof baselineScore === 'number' ? baselineScore : null;
     showPracticeBanner(topic, practiceBaselineScore);
@@ -1146,7 +1492,7 @@
       box.classList.remove('show');
     }
     selectedTopic = topic;
-    document.getElementById('startBtn').scrollIntoView({ behavior:'smooth', block:'center' });
+    setTimeout(() => document.getElementById('startBtn').scrollIntoView({ behavior:'smooth', block:'center' }), 50);
   }
 
   // ---------- subject chips ----------
@@ -1285,7 +1631,10 @@
   let durationMinutes = 30;
 
   function renderPlan(){
-    const total = Math.max(4, Math.round(durationMinutes / 3));
+    // Duration-specific floor: leaves the existing 15/30/45-min estimate formula
+    // completely untouched, only guarantees the newly-added 10-min tier previews
+    // at least 8 questions (per spec) instead of the generic formula's ~4.
+    const total = durationMinutes === 10 ? 8 : Math.max(4, Math.round(durationMinutes / 3));
     let technical, behavioral;
     if (interviewType === 'Behavioral'){ behavioral = total - 1; technical = 1; }
     else if (interviewType === 'Mixed'){ technical = Math.ceil(total * 0.5); behavioral = total - technical; }
@@ -1951,7 +2300,7 @@
         stopInterview();
         setConn('idle', false);
         document.getElementById('sessionLabel').style.display = 'none';
-        showScreen('welcome');
+        goToDashboard();
         return;
       }
       return askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink);
@@ -2105,10 +2454,6 @@
       if (lastReportWeakTag){
         practiceBtn.style.display = 'inline-block';
         practiceBtn.onclick = () => {
-          showScreen('welcome');
-          loadReturningBanner();
-          loadDashboardData();
-          loadMemoryData();
           selectTopicForPractice(lastReportWeakTag, lastReportWeakBaseline);
         };
       }
@@ -2283,10 +2628,7 @@
     stopInterview();
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
-    showScreen('welcome');
-    loadReturningBanner();
-    loadDashboardData();
-    loadMemoryData();
+    goToDashboard();
   });
 
 })();
