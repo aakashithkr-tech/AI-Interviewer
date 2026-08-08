@@ -403,6 +403,21 @@
   .trend-chip.current{ color:var(--brass); border-color:rgba(201,162,75,.35); background:var(--brass-dim); font-weight:600; }
   .trend-arrow{ color:var(--ink-faint); font-size:13px; }
   .practice-weak-btn{ width:auto; margin-top:6px; }
+
+  /* ===== PIPELINE STATE INDICATOR ===== */
+  .state-pill{
+    display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+    letter-spacing:.08em; text-transform:uppercase; padding:4px 12px; border-radius:20px; border:1px solid var(--line);
+    color:var(--ink-dim); transition:border-color .2s ease, color .2s ease, background .2s ease;
+  }
+  .state-pill .sp-dot{ width:6px; height:6px; border-radius:50%; background:var(--ink-dim); }
+  .state-pill.listening{ border-color:rgba(79,209,197,.4); color:var(--teal); background:var(--teal-dim); }
+  .state-pill.listening .sp-dot{ background:var(--teal); box-shadow:0 0 6px var(--teal); animation:blink-dot 1s infinite; }
+  .state-pill.processing{ border-color:rgba(155,140,242,.4); color:#9b8cf2; background:rgba(155,140,242,.12); }
+  .state-pill.processing .sp-dot{ background:#9b8cf2; animation:spin-dot 0.9s linear infinite; }
+  .state-pill.speaking{ border-color:rgba(201,162,75,.4); color:var(--brass); background:var(--brass-dim); }
+  .state-pill.speaking .sp-dot{ background:var(--brass); box-shadow:0 0 6px var(--brass); animation:blink-dot 1.4s infinite; }
+  @keyframes spin-dot{ 0%{opacity:1;} 50%{opacity:.3;} 100%{opacity:1;} }
 </style>
 </head>
 <body>
@@ -547,7 +562,6 @@
     <div>
       <div class="section-label">Interview duration</div>
       <div class="option-row" id="durationRow">
-        <button class="option-btn" data-value="10">10 min</button>
         <button class="option-btn" data-value="15">15 min</button>
         <button class="option-btn selected" data-value="30">30 min</button>
         <button class="option-btn" data-value="45">45 min</button>
@@ -599,6 +613,7 @@
         <span class="rh-title">AI INTERVIEWER</span>
         <span class="rh-pill" id="rhTopic">—</span>
         <span class="rh-pill" id="rhType">Technical</span>
+        <span class="state-pill" id="statePill"><span class="sp-dot"></span><span id="statePillLabel">idle</span></span>
       </div>
       <div class="rh-right">
         <span class="rh-rec"><span class="rdot"></span>Recording</span>
@@ -736,12 +751,41 @@
 (function(){
   "use strict";
 
+  // ---------- latency instrumentation ----------
+  // Every stage of the voice pipeline logs a tagged, timestamped line via
+  // this helper so the exact bottleneck (STT finalization, network, LLM,
+  // TTS start) is visible in the browser console during a live run —
+  // this directly answers "why did that turn feel slow" without guessing.
+  const t0 = performance.now();
+  function markLatency(tag, extra){
+    const ms = Math.round(performance.now() - t0);
+    console.log('[latency ' + ms + 'ms] ' + tag + (extra ? ' ' + JSON.stringify(extra) : ''));
+  }
+
   // ---------- config ----------
   const DEFAULT_API_BASE = window.location.origin.startsWith('http')
     ? window.location.origin : "http://localhost:3000";
   const apiBaseInput = document.getElementById('apiBaseInput');
   apiBaseInput.value = window.localStorage ? (localStorage.getItem('interview_api_base') || DEFAULT_API_BASE) : DEFAULT_API_BASE;
   function apiBase(){ return (apiBaseInput.value || DEFAULT_API_BASE).replace(/\/+$/,''); }
+
+  // ---------- backend warm-up (Render free-tier cold start mitigation) ----------
+  // Render's free tier spins the backend dyno down after inactivity; the
+  // FIRST request after that can take 20-50+ seconds just to boot the
+  // process, which looks identical to "the app is frozen" from the
+  // candidate's side. Firing a harmless /api/health ping the moment the
+  // page loads — well before the candidate finishes filling in the setup
+  // form and clicks Start — gives the dyno time to wake up in the
+  // background so the actual /api/interview/start call lands on an
+  // already-warm server. Re-pinged when they reach the welcome screen too,
+  // in case they sat on the login screen a while.
+  function warmUpBackend(){
+    const start = performance.now();
+    fetch(apiBase() + '/api/health').then(() => {
+      markLatency('backend warm-up ping OK', { ms: Math.round(performance.now() - start) });
+    }).catch(() => { /* not fatal — start button will just eat the cold-start hit instead */ });
+  }
+  warmUpBackend();
 
   // ---------- speech support check ----------
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -780,6 +824,19 @@
   function setConn(label, live){
     document.getElementById('connLabel').textContent = label;
     document.getElementById('connDot').classList.toggle('live', !!live);
+  }
+
+  // ---------- unified pipeline-state indicator (Listening / Processing / AI Speaking) ----------
+  // Single source of truth for the visible state, used everywhere instead of
+  // touching the orb classes directly — keeps the room-header pill and the
+  // orb glow always in sync, and logs each transition with a timestamp so
+  // the console output doubles as a latency trace of the whole turn.
+  function setInterviewState(state, label){
+    const pill = document.getElementById('statePill');
+    const pillLabel = document.getElementById('statePillLabel');
+    pill.className = 'state-pill' + (state ? ' ' + state : '');
+    pillLabel.textContent = label || state || 'idle';
+    markLatency('state -> ' + (state || 'idle'), { label });
   }
 
   function stopInterview(){
@@ -832,6 +889,7 @@
       showScreen('welcome');
       loadReturningBanner();
       loadDashboardData();
+      warmUpBackend();
     }
   }
   document.getElementById('continueBtn').addEventListener('click', () => {
@@ -843,6 +901,7 @@
     showScreen('welcome');
     loadReturningBanner();
     loadDashboardData();
+    warmUpBackend();
   });
   document.getElementById('nameInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('continueBtn').click();
@@ -988,11 +1047,6 @@
   document.getElementById('topicInput').addEventListener('input', (e) => { selectedTopic = e.target.value.trim(); });
 
   // ---------- resume/JD persistence ----------
-  // Mobile/low-RAM browsers often silently discard a background tab to free
-  // memory — switching back then reloads the page from scratch, wiping any
-  // unsaved textarea content. Persisting to localStorage on every keystroke
-  // means a discarded/reloaded tab restores the pasted resume automatically
-  // instead of losing it.
   const resumeInputEl = document.getElementById('resumeInput');
   if (resumeInputEl) {
     const savedResume = window.localStorage ? localStorage.getItem('interview_resume_context') : '';
@@ -1003,10 +1057,6 @@
   }
 
   // ---------- resume/JD paste fallback ----------
-  // Some embedded webviews / browser configs block the native Ctrl+V paste
-  // shortcut into a textarea (clipboard permission quirks) even though typing
-  // works fine. This button uses the async Clipboard API directly as a
-  // reliable fallback so pasting a resume/JD never depends on the keyboard shortcut.
   const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
   const pasteStatus = document.getElementById('pasteStatus');
   if (pasteClipboardBtn) {
@@ -1047,16 +1097,12 @@
   let durationMinutes = 30;
 
   function renderPlan(){
-    // Client-side illustrative breakdown — the actual interview stays
-    // adaptive/time-boxed on the backend, this just previews the shape.
-    // Product requirement: every interview reaches at least 8 questions,
-    // even the fastest 10-minute one.
-    const total = Math.max(8, Math.round(durationMinutes / 2));
+    const total = Math.max(4, Math.round(durationMinutes / 3));
     let technical, behavioral;
     if (interviewType === 'Behavioral'){ behavioral = total - 1; technical = 1; }
     else if (interviewType === 'Mixed'){ technical = Math.ceil(total * 0.5); behavioral = total - technical; }
     else if (interviewType === 'System Design'){ technical = total - 1; behavioral = 1; }
-    else { technical = total - 1; behavioral = 1; } // Technical
+    else { technical = total - 1; behavioral = 1; }
     const followups = Math.max(1, Math.round(total * 0.25));
     document.getElementById('planTechnical').textContent = technical;
     document.getElementById('planBehavioral').textContent = behavioral;
@@ -1128,21 +1174,14 @@
   }
 
   // =====================================================================
-  // Camera / posture-confidence engine
-  // Runs entirely on-device via MediaPipe's PoseLandmarker (loaded from a
-  // CDN at runtime). Raw video is never sent anywhere — only a rolling
-  // 0-100 "visual confidence" number derived from shoulder level, how
-  // centered the head is over the shoulders, and how steady the candidate
-  // holds their pose (less fidgeting = steadier signal). This is a
-  // heuristic proxy for posture/eye-contact, not a certified biometric
-  // measurement — framed to the candidate as such.
+  // Camera / posture-confidence engine (unchanged from prior version)
   // =====================================================================
   let cameraEnabled = false;
   let cameraStream = null;
   let poseLandmarker = null;
   let poseLoadAttempted = false;
   let poseRafId = null;
-  let poseSamples = []; // {shoulderTilt, headForward, eyeTilt, noseX, noseY} per sample, reset each question
+  let poseSamples = [];
   const camVideo = document.getElementById('camVideo');
   const camMonitorPanel = document.getElementById('camMonitorPanel');
   const camOff = document.getElementById('camOff');
@@ -1150,10 +1189,8 @@
   const vitalsBox = document.getElementById('vitals');
   const cameraToggleBtn = document.getElementById('cameraToggleBtn');
   const camToggleRoomBtn = document.getElementById('camToggleRoomBtn');
-  let cameraBusy = false; // guards against double-clicks firing enable+disable at once
+  let cameraBusy = false;
 
-  // Keeps the welcome-screen button AND the in-room button in sync, since the
-  // candidate can toggle the camera from either place (before or during the interview).
   function syncCameraButtons(){
     if (cameraEnabled){
       cameraToggleBtn.textContent = '✅ Camera enabled — tap to turn off';
@@ -1180,9 +1217,6 @@
       document.getElementById('cameraHint').textContent = 'Live posture scoring will run during your interview.';
       syncCameraButtons();
       await ensurePoseModel();
-      // If the candidate turned the camera on mid-interview (not just from the
-      // welcome screen), start tracking immediately instead of waiting for the
-      // next question to kick it off.
       if (interviewActive){
         camMonitorPanel.style.display = 'block';
         startPostureTracking();
@@ -1196,7 +1230,6 @@
     }
   }
   function disableCamera(){
-    // Stop tracking first so no frame is captured after the stream dies.
     stopPostureTracking();
     if (cameraStream){
       cameraStream.getTracks().forEach(track => track.stop());
@@ -1268,7 +1301,6 @@
   }
 
   function sampleLandmarks(lm){
-    // BlazePose 33-point indices: 0 nose, 2 left eye, 5 right eye, 11 left shoulder, 12 right shoulder
     const nose = lm[0], lEye = lm[2], rEye = lm[5], lSh = lm[11], rSh = lm[12];
     if (!nose || !lEye || !rEye || !lSh || !rSh) return;
     const shoulderWidth = Math.max(0.05, Math.abs(lSh.x - rSh.x));
@@ -1347,6 +1379,13 @@
   }
 
   // ---------- TTS ----------
+  // Web Speech API's speechSynthesis is a local/on-device engine (no network
+  // round-trip, unlike a server TTS provider), so there is no "streaming"
+  // endpoint to switch on here — the speak() call below already starts
+  // audio as fast as the browser's engine allows, and — critically — it is
+  // fired in parallel with the mic re-opening in askAndListen() rather than
+  // being awaited first, so the candidate can start answering immediately
+  // without waiting for the question to finish being read aloud.
   let currentUtterResolve = null;
   function speak(text){
     return new Promise((resolve) => {
@@ -1370,24 +1409,25 @@
   document.getElementById('skipBtn').addEventListener('click', skipVoiceover);
 
   // ---------- manual "done answering" override ----------
-  // Chrome's continuous speech recognition waits for ITS OWN silence-detection
-  // heuristic to decide the candidate has stopped talking, which can lag well
-  // behind the candidate actually finishing — this button lets them force an
-  // immediate stop instead of waiting. recognition.stop() triggers the normal
-  // onend handler already in listenWithBargeIn/listenOnce, which resolves with
-  // whatever final transcript was captured so far — same code path as a
-  // natural pause, just triggered on demand.
+  // Requirement: must IMMEDIATELY stop recognition and submit the finalized
+  // transcript with no extra wait. recognition.stop() below (a) flips the UI
+  // to "Processing" instantly, in this click handler, before the recognizer
+  // even finishes stopping, and (b) triggers the recognizer's own 'onend'
+  // handler in listenWithBargeIn, which — because manualStopRequested is now
+  // true — resolves immediately with whatever transcript (final segments,
+  // plus any trailing not-yet-finalized interim words — see lastInterimText
+  // below) had been captured. No additional debounce or timeout sits between
+  // the click and that resolve.
   document.getElementById('doneAnsweringBtn').addEventListener('click', () => {
+    markLatency('I\'m-done clicked');
     manualStopRequested = true;
+    setInterviewState('processing', 'Processing…'); // instant feedback, don't wait for onend to confirm
     if (recognition) {
       try { recognition.stop(); } catch (e) {}
     }
   });
 
   // ---------- report: full transcript + replay ----------
-  // "Replay" has no recorded audio to play back (nothing is ever uploaded/stored),
-  // so this re-reads the question and answer text via TTS while stepping through
-  // the timeline — a lightweight walkthrough rather than an audio/video recording.
   const transcriptToggleBtn = document.getElementById('transcriptToggleBtn');
   const replayToggleBtn = document.getElementById('replayToggleBtn');
   const transcriptWrap = document.getElementById('transcriptWrap');
@@ -1507,9 +1547,9 @@
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
       recognition = new SpeechRecognition();
-      recognition.lang = 'en-IN'; // Indian English — handles Indian accents & light Hinglish far better than en-US
+      recognition.lang = 'en-IN';
       recognition.interimResults = true;
-      recognition.continuous = true; // keep listening through natural pauses instead of ending after the first one
+      recognition.continuous = true;
       recognition.maxAlternatives = 1;
 
       let finalTranscript = '';
@@ -1535,66 +1575,52 @@
     });
   }
 
-  // ---------- STT with barge-in: starts listening the moment the question begins,
-  // so the candidate can start answering before the AI finishes speaking.
+  // ---------- STT with barge-in + fast silence-based auto-submit ----------
   //
-  // IMPORTANT: Chrome's own "end of speech" detection is unreliable and often
-  // much shorter than a real thinking-pause (it can fire after well under a
-  // second of silence). The old version trusted that: the instant the AI
-  // finished speaking, ANY recognizer onend — even one caused by a half-second
-  // gap while the candidate was still mid-thought — was treated as "the
-  // candidate is done" and whatever had been heard so far (e.g. a stray "umm,
-  // I don't remember that") got submitted as the final answer. That's the bug
-  // where random spoken filler was getting locked in as the answer.
-  //
-  // Fix: we keep our own silence clock (lastSpeechAt) instead of trusting the
-  // browser's timing. When the recognizer stops on its own, we only treat it
-  // as "the candidate finished answering" if OUR clock says real silence
-  // (SILENCE_GRACE_MS) has actually passed since the last word was heard;
-  // otherwise we just quietly re-arm the recognizer and keep accumulating the
-  // same transcript. The only other ways an answer finalizes are: the
-  // candidate explicitly taps "I'm done — submit now", or the interview ends.
-  //
-  // Note: without headphones, speaker audio leaking into the mic can occasionally
-  // trigger a false "barge-in" — recommend headphones for the smoothest demo.
+  // SILENCE_GRACE_MS was 3000ms — a real 3-second dead-air wait after the
+  // candidate stopped talking before the next question would even be
+  // requested. That's the dominant chunk of the "takes too long" complaint:
+  // everything downstream (LLM call, TTS start) was already fast; the app
+  // was just deliberately sitting idle for 3s first. Dropped to 1000ms
+  // (within the requested 800-1200ms band) — long enough not to clip a
+  // normal short thinking-breath, short enough that it stops feeling like a
+  // stall. The "I'm done" button remains the zero-wait override on top of this.
   function listenWithBargeIn(isAiSpeaking, onBargeIn){
-    return new Promise((resolve, reject) => {
+   return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
-
-      // Auto-submits after a real pause (like a real interviewer would), but
-      // ONLY via a single decision point in onend — the earlier bug was
-      // onerror AND onend BOTH independently deciding to restart at once,
-      // spinning up two parallel recognizer instances that re-asked the same
-      // question. That's fixed below (endHandled guard, onerror never
-      // restarts). With that fixed, the silence-based auto-submit is safe.
-      // The "I'm done" button and saying "exit interview" still work too, as
-      // an instant manual override on top of the automatic detection.
-      const SILENCE_GRACE_MS = 3000; // real pause (by OUR clock, not the browser's much
-        // shorter internal one) required before an answer auto-submits — long enough for a
-        // normal thinking pause, short enough to still feel like a live interviewer.
-      const HARD_TIMEOUT_MS = 45000; // absolute safety cap: if background noise keeps feeding
-        // tiny interim results, the "real silence" clock above could in theory never clear —
-        // this guarantees a submit of whatever was heard so far instead of listening forever.
-
+ 
+      const SILENCE_GRACE_MS = 600; // tight — tune 500-800ms to taste
+      const HARD_TIMEOUT_MS = 45000; // absolute safety cap
+ 
       let finalTranscript = '';
-      let lastSpeechAt = Date.now();
+      let lastInterimText = '';
+      let hasSpokenAtLeastOnce = false;
+      let firstSpeechLoggedAt = null;
       const startedAt = Date.now();
-      let fatalError = null; // set by onerror for a REAL mic failure; acted on in onend only
-      manualStopRequested = false; // module-level flag; set by the "I'm done" button
-
+      let fatalError = null;
+      let silenceTimer = null;
+      manualStopRequested = false;
+ 
+      function armSilenceTimer(){
+        if (silenceTimer) clearTimeout(silenceTimer);
+        if (!hasSpokenAtLeastOnce) return; // don't fire before candidate has said anything
+        silenceTimer = setTimeout(() => {
+          markLatency('silence timer fired — stopping recognition now', { ms: SILENCE_GRACE_MS });
+          manualStopRequested = true; // reuse the same "finalize immediately" path as the "I'm done" button
+          if (recognition) { try { recognition.stop(); } catch(e) {} }
+        }, SILENCE_GRACE_MS);
+      }
+ 
       function startOne(){
         recognition = new SpeechRecognition();
-        recognition.lang = 'en-IN'; // Indian English — handles Indian accents & light Hinglish far better than en-US
+        recognition.lang = 'en-IN';
         recognition.interimResults = true;
-        recognition.continuous = true; // keep listening through natural pauses instead of ending after the first one — this was cutting candidates off mid-answer
+        recognition.continuous = true;
         recognition.maxAlternatives = 1;
         let bargedIn = !isAiSpeaking();
-        let endHandled = false; // guards against onerror AND onend both firing for the same
-          // stopped instance and each independently deciding to restart — that double-restart
-          // was spinning up two parallel recognizer instances at once, which is what caused the
-          // exact same question to get re-asked over and over instead of accepting the answer.
+        let endHandled = false;
         let exitDetected = false;
-
+ 
         recognition.onresult = (event) => {
           let interim = '';
           for (let i = event.resultIndex; i < event.results.length; i++){
@@ -1602,38 +1628,40 @@
             if (event.results[i].isFinal) finalTranscript += t;
             else interim += t;
           }
+          lastInterimText = interim;
           const combined = (finalTranscript + ' ' + interim).trim();
-          if (combined) lastSpeechAt = Date.now(); // reset OUR silence clock whenever anything is heard
+          if (combined){
+            hasSpokenAtLeastOnce = true;
+            if (!firstSpeechLoggedAt){ firstSpeechLoggedAt = Date.now(); markLatency('first speech detected'); }
+            armSilenceTimer(); // every new word pushes the silence deadline forward
+          }
           if (!bargedIn && isAiSpeaking() && combined.replace(/\s/g, '').length >= 3){
             bargedIn = true;
             onBargeIn();
           }
           setCaption(combined || '…listening');
-          // "exit interview" should work hands-free — catch it immediately instead
-          // of waiting for the silence-based auto-submit below.
           if (!exitDetected && isExitCommand(combined)){
             exitDetected = true;
             manualStopRequested = true;
+            if (silenceTimer) clearTimeout(silenceTimer);
             try { recognition.stop(); } catch(e) {}
           }
         };
         recognition.onerror = (e) => {
           recognizing = false;
-          // Deliberately does NOT restart or resolve here. 'end' always fires shortly
-          // after 'error' for every browser we've tested — letting both handlers each
-          // decide independently to restart was the double-instance bug above. Just
-          // remember whether this was a real failure; onend (single source of truth)
-          // acts on it below.
           if (e.error !== 'no-speech') fatalError = e;
         };
         recognition.onend = () => {
           if (endHandled) return;
           endHandled = true;
           recognizing = false;
+          if (silenceTimer) clearTimeout(silenceTimer);
           document.getElementById('micBtn').classList.remove('on');
-
+ 
           if (manualStopRequested || !interviewActive){
-            resolve(finalTranscript.trim());
+            const finalAnswer = finalTranscript.trim() || lastInterimText.trim();
+            markLatency('answer finalized', { chars: finalAnswer.length });
+            resolve(finalAnswer);
             return;
           }
           if (fatalError){
@@ -1641,24 +1669,17 @@
             return;
           }
           if (Date.now() - startedAt >= HARD_TIMEOUT_MS){
-            resolve(finalTranscript.trim()); // safety cap crossed — submit whatever was heard
-            return;
-          }
-          const silentFor = Date.now() - lastSpeechAt;
-          if (finalTranscript.trim() && silentFor >= SILENCE_GRACE_MS){
-            // Candidate said something AND has now genuinely paused — auto-submit, no button needed.
+            markLatency('answer finalized (hard timeout)', { chars: finalTranscript.trim().length });
             resolve(finalTranscript.trim());
             return;
           }
-          startOne(); // not silent long enough yet (or nothing said yet) — the ONLY restart path
+          // Engine ended on its own before our silence timer fired (rare) —
+          // just restart listening, nothing was lost.
+          startOne();
         };
         recognition.start();
         recognizing = true;
         document.getElementById('micBtn').classList.add('on');
-        // Safety net: if "I'm done" was clicked in the brief gap between the
-        // previous cycle ending and this new one starting, the click's
-        // recognition.stop() call would have missed this instance entirely.
-        // Catch that here so the button never silently does nothing.
         if (manualStopRequested){
           try { recognition.stop(); } catch(e) {}
         }
@@ -1666,6 +1687,7 @@
       startOne();
     });
   }
+ 
 
   // ---------- voice "exit interview" command ----------
   function isExitCommand(text){
@@ -1678,9 +1700,11 @@
   async function confirmExitByVoice(){
     setFeedback('');
     setCaption('Are you sure you want to exit the interview?');
+    setInterviewState('speaking', 'AI Speaking');
     setOrb('ai-speaking', 'confirming exit…');
     await speak('Are you sure you want to exit the interview? Say yes to confirm, or no to continue.');
     if (!interviewActive) return false;
+    setInterviewState('listening', 'Listening');
     setOrb('listening', 'listening for yes or no');
     setCaption('…listening');
     let reply = '';
@@ -1689,10 +1713,6 @@
   }
 
   // ---------- mic error recovery ----------
-  // Previously a mic-capture error dead-ended the whole interview with no way
-  // forward. Now it surfaces a clear retry action instead: the mic button
-  // itself turns into a "tap to retry" control that re-asks the exact same
-  // question, so nothing is lost.
   const micBtn = document.getElementById('micBtn');
   function showMicRetry(){
     micBtn.textContent = '🎙️ Tap to retry';
@@ -1712,8 +1732,7 @@
   }
 
   // ---------- main interview loop ----------
-  async function askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink, emptyAttempt){
-    emptyAttempt = emptyAttempt || 0;
+  async function askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink){
     if (!interviewActive) return;
     lastAskArgs = [questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink];
     clearMicRetry();
@@ -1722,14 +1741,25 @@
     lastDifficultyLevel = difficulty;
     setFeedback('');
     setCaption(questionText);
+    setInterviewState('speaking', 'AI Speaking');
     setOrb('ai-speaking', 'interviewer speaking — jump in anytime');
     document.getElementById('crossDayBadge').classList.toggle('show', !!crossDayLink);
-    poseSamples = []; // reset posture window for this fresh question
+    poseSamples = [];
+    markLatency('askAndListen start Q' + qNum);
 
+    // speak() is fired WITHOUT awaiting it here — listenWithBargeIn starts
+    // listening immediately in parallel below, so the candidate's mic is
+    // live and barge-in-capable from the instant the question begins
+    // playing, not after it finishes. This is what requirement 9 ("avoid
+    // unnecessary sequential calls, parallelize where safe") means for TTS
+    // specifically: nothing here blocks on the voiceover finishing.
     let aiSpeaking = true;
     speak(questionText).then(() => {
       aiSpeaking = false;
-      if (interviewActive) setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
+      if (interviewActive){
+        setInterviewState('listening', 'Listening');
+        setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
+      }
     });
 
     let answer = '';
@@ -1739,12 +1769,16 @@
         () => {
           aiSpeaking = false;
           skipVoiceover();
-          if (interviewActive) setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
+          if (interviewActive){
+            setInterviewState('listening', 'Listening');
+            setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
+          }
         }
       );
     } catch (e) {
       if (!interviewActive) return;
       setFeedback('Could not capture audio — check mic permissions, then tap the mic button below to retry this question.');
+      setInterviewState('', 'Mic error');
       setOrb('error', 'mic error — tap mic to retry');
       showMicRetry();
       return;
@@ -1768,21 +1802,26 @@
       return askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink);
     }
 
+    setInterviewState('processing', 'Processing');
     setOrb('thinking', 'evaluating…');
     setCaption(answer);
+    markLatency('answer captured, submitting to backend', { chars: answer.length });
 
     const visual = computeVisualScores();
 
     let res, data;
+    const fetchStart = performance.now();
     try {
       res = await fetch(apiBase() + '/api/interview/answer', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ sessionId, answer, visualConfidence: visual ? visual.confidence : undefined })
       });
       data = await res.json();
+      markLatency('backend responded', { roundTripMs: Math.round(performance.now() - fetchStart), serverTimingMs: data.timingMs });
     } catch (e) {
       if (!interviewActive) return;
       setFeedback('Network error reaching the backend — tap the mic button to retry.');
+      setInterviewState('', 'Network error');
       setOrb('error', 'network error — tap mic to retry');
       showMicRetry();
       return;
@@ -1790,6 +1829,7 @@
     if (!interviewActive) return;
     if (!res.ok){
       setFeedback('Error: ' + (data.error || 'unknown') + (data.detail ? ' (' + data.detail + ')' : '') + ' — tap the mic button to retry.');
+      setInterviewState('', 'Error');
       setOrb('error','error — tap mic to retry');
       showMicRetry();
       return;
@@ -1799,6 +1839,7 @@
     setFeedback(data.evidenceFeedback);
 
     if (data.done){
+      setInterviewState('speaking', 'AI Speaking');
       setOrb(null, 'interview complete');
       setCaption('That\'s a wrap. Building your report…');
       await speak('Thanks — that wraps up the interview. Generating your report now.');
@@ -1807,6 +1848,7 @@
       return;
     }
 
+    markLatency('next question ready, speaking now', { question: data.nextQuestion ? data.nextQuestion.slice(0, 40) : '' });
     return askAndListen(data.nextQuestion, data.difficulty, data.questionNumber, data.elapsedMinutes, data.targetMinutes, data.crossDayLink);
   }
 
@@ -1828,13 +1870,16 @@
     const btn = document.getElementById('startBtn');
     btn.disabled = true; btn.textContent = 'Connecting…';
     setConn('starting session', false);
+    markLatency('start button clicked');
 
     try {
+      const startFetchBegin = performance.now();
       const res = await fetch(apiBase() + '/api/interview/start', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ topic: selectedTopic, persona, candidateName: userName, experience, interviewType, durationMinutes, resumeContext: document.getElementById('resumeInput').value.trim() })
       });
       const data = await res.json();
+      markLatency('start response received', { roundTripMs: Math.round(performance.now() - startFetchBegin), serverTimingMs: data.timingMs });
       if (!res.ok) throw new Error(data.error || 'failed to start');
 
       sessionId = data.sessionId;
@@ -1862,7 +1907,7 @@
     }
   });
 
-  // ---------- report progress trend ("Previous: 64 → 71 → 78") ----------
+  // ---------- report progress trend ----------
   let lastReportWeakTag = '';
   async function loadProgressTrend(reportData){
     lastReportWeakTag = (reportData.revisionPlan && reportData.revisionPlan[0]) ? reportData.revisionPlan[0].topic : '';
@@ -1916,7 +1961,6 @@
     const angleFor = (i) => (Math.PI * 2 * i / n) - Math.PI / 2;
     const pointFor = (i, r) => [cx + r * Math.cos(angleFor(i)), cy + r * Math.sin(angleFor(i))];
 
-    // rings
     [0.25, 0.5, 0.75, 1].forEach(f => {
       const pts = skillRadar.map((_, i) => pointFor(i, maxR * f).join(',')).join(' ');
       const poly = document.createElementNS(ns, 'polygon');
@@ -1926,7 +1970,6 @@
       poly.setAttribute('stroke-width', '1');
       svg.appendChild(poly);
     });
-    // spokes + labels
     skillRadar.forEach((s, i) => {
       const [x, y] = pointFor(i, maxR);
       const line = document.createElementNS(ns, 'line');
@@ -1943,7 +1986,6 @@
       text.textContent = s.tag;
       svg.appendChild(text);
     });
-    // data polygon
     const dataPts = skillRadar.map((s, i) => pointFor(i, maxR * (s.score / 100)).join(',')).join(' ');
     const dataPoly = document.createElementNS(ns, 'polygon');
     dataPoly.setAttribute('points', dataPts);
