@@ -769,6 +769,7 @@
   let currentTimeline = []; // populated on report load — powers both the full-transcript view and replay
   let replayIndex = 0;
   let replayPlaying = false;
+  let manualStopRequested = false; // set true only by the "I'm done" button — the one explicit way to finalize an answer
 
   // ---------- screens ----------
   function showScreen(id){
@@ -1374,6 +1375,7 @@
   // whatever final transcript was captured so far — same code path as a
   // natural pause, just triggered on demand.
   document.getElementById('doneAnsweringBtn').addEventListener('click', () => {
+    manualStopRequested = true;
     if (recognition && recognizing) {
       try { recognition.stop(); } catch (e) {}
     }
@@ -1531,17 +1533,60 @@
   }
 
   // ---------- STT with barge-in: starts listening the moment the question begins,
-  // so the candidate can start answering before the AI finishes speaking. If Chrome's
-  // recognizer times out on silence while the AI is still talking, it quietly restarts
-  // instead of failing — this only matters while `isAiSpeaking()` is still true.
+  // so the candidate can start answering before the AI finishes speaking.
+  //
+  // IMPORTANT: Chrome's own "end of speech" detection is unreliable and often
+  // much shorter than a real thinking-pause (it can fire after well under a
+  // second of silence). The old version trusted that: the instant the AI
+  // finished speaking, ANY recognizer onend — even one caused by a half-second
+  // gap while the candidate was still mid-thought — was treated as "the
+  // candidate is done" and whatever had been heard so far (e.g. a stray "umm,
+  // I don't remember that") got submitted as the final answer. That's the bug
+  // where random spoken filler was getting locked in as the answer.
+  //
+  // Fix: we keep our own silence clock (lastSpeechAt) instead of trusting the
+  // browser's timing. When the recognizer stops on its own, we only treat it
+  // as "the candidate finished answering" if OUR clock says real silence
+  // (SILENCE_GRACE_MS) has actually passed since the last word was heard;
+  // otherwise we just quietly re-arm the recognizer and keep accumulating the
+  // same transcript. The only other ways an answer finalizes are: the
+  // candidate explicitly taps "I'm done — submit now", or the interview ends.
+  //
   // Note: without headphones, speaker audio leaking into the mic can occasionally
   // trigger a false "barge-in" — recommend headphones for the smoothest demo.
   function listenWithBargeIn(isAiSpeaking, onBargeIn){
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
 
-      let silentRetries = 0;
-      const MAX_SILENT_RETRIES = 8; // ~ a couple minutes of patient re-listening before giving up
+      const SILENCE_GRACE_MS = 2500; // real, our-own-clock silence required before we call an answer "finished"
+      const MAX_EMPTY_RESTARTS = 12; // give up only if truly nothing is ever heard
+
+      let finalTranscript = '';
+      let lastSpeechAt = Date.now();
+      let emptyRestarts = 0;
+      manualStopRequested = false; // module-level flag; set by the "I'm done" button
+
+      function handleNaturalStop(){
+        const silentFor = Date.now() - lastSpeechAt;
+        if (finalTranscript.trim() && silentFor >= SILENCE_GRACE_MS){
+          // Candidate said something AND has now genuinely paused — done answering.
+          resolve(finalTranscript.trim());
+          return;
+        }
+        if (finalTranscript.trim()){
+          // Said something, but not silent long enough by our own clock yet —
+          // the browser cut the session short mid-thought. Keep listening.
+          emptyRestarts = 0;
+        } else {
+          emptyRestarts++;
+          if (emptyRestarts >= MAX_EMPTY_RESTARTS){
+            resolve(''); // genuinely nothing heard — let the caller show "didn't catch that"
+            return;
+          }
+        }
+        try { recognition.stop(); } catch(err) {}
+        startOne();
+      }
 
       function startOne(){
         recognition = new SpeechRecognition();
@@ -1549,7 +1594,6 @@
         recognition.interimResults = true;
         recognition.continuous = true; // keep listening through natural pauses instead of ending after the first one — this was cutting candidates off mid-answer
         recognition.maxAlternatives = 1;
-        let finalTranscript = '';
         let bargedIn = !isAiSpeaking();
 
         recognition.onresult = (event) => {
@@ -1560,7 +1604,7 @@
             else interim += t;
           }
           const combined = (finalTranscript + ' ' + interim).trim();
-          if (combined) silentRetries = 0; // heard something — reset the patience counter
+          if (combined) lastSpeechAt = Date.now(); // reset OUR silence clock, not just a retry counter
           if (!bargedIn && isAiSpeaking() && combined.replace(/\s/g, '').length >= 3){
             bargedIn = true;
             onBargeIn();
@@ -1569,15 +1613,13 @@
         };
         recognition.onerror = (e) => {
           recognizing = false;
-          // Chrome's recognizer times out on plain silence ("no-speech") — this is
-          // NOT a real mic failure, it just means the candidate hasn't started
-          // talking yet (whether the AI is still speaking, or the candidate is
-          // pausing to think). Keep quietly re-listening either way, up to a cap,
-          // instead of dead-ending the interview on a normal pause.
-          if (e.error === 'no-speech' && interviewActive && silentRetries < MAX_SILENT_RETRIES){
-            silentRetries++;
-            try { recognition.stop(); } catch(err) {}
-            startOne();
+          // A manual stop (the "I'm done" button) can itself surface as an
+          // 'aborted'/'no-speech' error on some browsers right before onend —
+          // that is not a real mic failure, so don't reject in that case;
+          // let onend below resolve normally with whatever was captured.
+          if (manualStopRequested) return;
+          if (e.error === 'no-speech' && interviewActive){
+            handleNaturalStop();
             return;
           }
           reject(e);
@@ -1585,11 +1627,11 @@
         recognition.onend = () => {
           recognizing = false;
           document.getElementById('micBtn').classList.remove('on');
-          if (finalTranscript.trim() || !isAiSpeaking() || !interviewActive){
+          if (manualStopRequested || !interviewActive){
             resolve(finalTranscript.trim());
-          } else {
-            startOne(); // ended with nothing while AI still mid-question — restart
+            return;
           }
+          handleNaturalStop();
         };
         recognition.start();
         recognizing = true;
