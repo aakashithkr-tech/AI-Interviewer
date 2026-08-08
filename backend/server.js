@@ -268,7 +268,7 @@ const PERSONAS = {
   faang: 'FAANG-bar-raiser style. Frame questions as system design / real-world scenarios ("Imagine you are designing X. Continue."). High expectations, probing follow-ups.'
 };
 
-function buildSystemPrompt(persona, topic, memoryContext, targetMinutes, interviewType, experience) {
+function buildSystemPrompt(persona, topic, memoryContext, targetMinutes, interviewType, experience, resumeContext) {
   targetMinutes = targetMinutes || TARGET_MINUTES;
   return `You are an adaptive AI technical interviewer conducting a live spoken interview on the topic: "${topic}".
 
@@ -280,7 +280,7 @@ Interview type: ${interviewType || 'Technical'} — ${
     : 'favor technical depth questions.'
   }
 Candidate experience level: ${experience || 'Intermediate'} — calibrate question difficulty and expected depth accordingly.
-
+${resumeContext ? `\nCandidate's resume / target job description (use this to tailor questions to their actual claimed experience — probe specific technologies, projects, or responsibilities they mention, and don't be afraid to test whether they can really back up a claim on their resume):\n"""\n${resumeContext}\n"""\n` : ''}
 This is a TIME-BOXED interview targeting roughly ${targetMinutes} minutes total, not a fixed question count. Pace yourself against the elapsed time you're given each turn — don't stop after a small fixed number of questions, and don't run drastically over the target either.
 ${memoryContext ? `\n${memoryContext}\n` : ''}
 Your job every turn:
@@ -309,8 +309,8 @@ Always reply with STRICT JSON only, no markdown, matching this schema exactly:
 }`;
 }
 
-function buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience) {
-  return `Generate the FIRST interview question for a live spoken ${interviewType || 'Technical'}-style interview on "${topic}", for a candidate at ${experience || 'Intermediate'} experience level.${memoryContext ? ` ${memoryContext}` : ''} Start at a medium-easy difficulty (level 2 of 5) to establish a baseline. If relevant past-day concepts were given above and one connects naturally to "${topic}", you may open with a light callback ("Last time you covered X — today let's build on that with ${topic}.") but keep the actual question itself foundational. Reply with STRICT JSON only:
+function buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience, resumeContext) {
+  return `Generate the FIRST interview question for a live spoken ${interviewType || 'Technical'}-style interview on "${topic}", for a candidate at ${experience || 'Intermediate'} experience level.${memoryContext ? ` ${memoryContext}` : ''}${resumeContext ? `\nCandidate's resume / target job description:\n"""\n${resumeContext}\n"""\nIf it clearly connects to "${topic}", ground the opening question in something specific from it (a real project, technology, or responsibility they listed) instead of a generic textbook question.` : ''} Start at a medium-easy difficulty (level 2 of 5) to establish a baseline. If relevant past-day concepts were given above and one connects naturally to "${topic}", you may open with a light callback ("Last time you covered X — today let's build on that with ${topic}.") but keep the actual question itself foundational. Reply with STRICT JSON only:
 {
   "nextQuestion": "<the opening question, in tone: ${PERSONAS[persona] || PERSONAS.friendly}>",
   "nextDifficulty": 2,
@@ -335,18 +335,20 @@ app.post('/api/interview/start', async (req, res) => {
   try {
     const {
       topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '',
-      experience = 'Intermediate', interviewType = 'Technical', durationMinutes
+      experience = 'Intermediate', interviewType = 'Technical', durationMinutes, resumeContext = ''
     } = req.body || {};
     const sessionId = uuidv4();
     const candidateKey = slugKey(candidateName);
     const targetMinutes = [15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES;
+    // Cap length so a giant pasted resume/JD can't blow out prompt size or cost.
+    const cleanResumeContext = String(resumeContext || '').trim().slice(0, 4000);
 
     const memory = await retrieveCrossDayMemory(candidateKey, topic, 3);
     const memoryContext = formatMemoryContext(memory);
 
     const raw = await callLLM(
       'You are an interview question generator. Reply with strict JSON only.',
-      buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience)
+      buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience, cleanResumeContext)
     );
     const parsed = safeParseJSON(raw) || {
       nextQuestion: `Let's start with the basics — can you explain what ${topic} means in your own words?`,
@@ -363,6 +365,7 @@ app.post('/api/interview/start', async (req, res) => {
       experience,
       interviewType,
       targetMinutes,
+      resumeContext: cleanResumeContext,
       difficulty: parsed.nextDifficulty || 2,
       turns: [],
       createdAt: Date.now(),
@@ -426,7 +429,7 @@ Candidate's spoken answer (transcribed): "${answer}"
 Evaluate this answer and produce the next step, per the schema.${overTime || hitAbsoluteCap ? ' Time is up (or the safety question cap was hit) — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
 
     const raw = await callLLM(
-      buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience),
+      buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience, session.resumeContext),
       userPrompt
     );
     const parsed = safeParseJSON(raw);
@@ -516,6 +519,7 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
     const timeline = turns.map(t => ({
       qNum: t.qNum,
       question: t.question,
+      answer: t.answer,
       verdict: t.verdict,
       topicTag: t.topicTag,
       difficulty: t.difficulty,

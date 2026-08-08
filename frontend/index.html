@@ -255,6 +255,7 @@
   }
   .control-btn:hover{ border-color:var(--ink-dim); color:var(--ink); }
   .control-btn.muted{ border-color:var(--brass); color:var(--brass); }
+  .control-btn.cam-on{ border-color:var(--teal); color:var(--teal); }
   .control-btn.exit:hover{ border-color:var(--red); color:var(--red); }
   .timeline{ display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto; }
   .tick{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace;}
@@ -560,6 +561,14 @@
     </div>
 
     <div>
+      <div class="section-label">Resume / job description (optional)</div>
+      <details class="config" id="resumeDetails">
+        <summary>✏️ Paste resume or JD to get role-specific questions</summary>
+        <textarea id="resumeInput" class="mono" rows="6" placeholder="Paste your resume text or the job description here — the interviewer will tailor questions to what's actually in it (projects, stack, responsibilities) instead of generic textbook questions." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
+      </details>
+    </div>
+
+    <div>
       <div class="section-label">Camera (optional)</div>
       <div class="camera-toggle-row">
         <button class="btn-ghost" id="cameraToggleBtn">🎥 Enable camera for posture scoring</button>
@@ -633,6 +642,7 @@
         <div class="control-row">
           <button class="control-btn" id="skipBtn">⏭ Skip voiceover</button>
           <button class="control-btn" id="muteBtn">🔊 Mute voiceover</button>
+          <button class="control-btn" id="camToggleRoomBtn">🎥 Enable camera</button>
           <button class="control-btn exit" id="exitBtn">Exit interview</button>
         </div>
       </div>
@@ -665,8 +675,30 @@
     <div class="report-2col">
       <div style="display:flex; flex-direction:column; gap:28px;">
         <div>
-          <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);">Interview timeline</h3>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim); margin:0;">Interview timeline</h3>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-ghost" id="transcriptToggleBtn" style="padding:6px 12px;font-size:11.5px;">📄 Full transcript</button>
+              <button class="btn-ghost" id="replayToggleBtn" style="padding:6px 12px;font-size:11.5px;">▶ Replay</button>
+            </div>
+          </div>
           <div class="report-timeline" id="reportTimeline"></div>
+
+          <div class="notes-wrap" id="transcriptWrap" style="display:none; margin-top:12px;"></div>
+
+          <div class="notes-wrap" id="replayWrap" style="display:none; margin-top:12px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+              <span class="mono" id="replayCounter" style="font-size:11px; color:var(--ink-faint);">Q1 / 1</span>
+              <div style="display:flex; gap:8px;">
+                <button class="control-btn" id="replayPrevBtn">⏮ Prev</button>
+                <button class="control-btn" id="replayPlayBtn">▶ Play</button>
+                <button class="control-btn" id="replayNextBtn">Next ⏭</button>
+              </div>
+            </div>
+            <div style="margin-top:14px; font-family:'Fraunces',serif; font-size:16px; color:var(--ink); line-height:1.5;" id="replayQuestion">—</div>
+            <div style="margin-top:10px; font-size:13.5px; color:var(--ink-dim); line-height:1.5;" id="replayAnswer">—</div>
+            <div style="margin-top:10px; font-size:12px; color:var(--brass); font-style:italic;" id="replayFeedback"></div>
+          </div>
         </div>
         <div>
           <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);">Personalized revision plan</h3>
@@ -729,6 +761,9 @@
   let lastDifficultyLevel = null; // for the "difficulty adapting" toast
   let roomTimerInterval = null;
   let roomTimerStart = null;
+  let currentTimeline = []; // populated on report load — powers both the full-transcript view and replay
+  let replayIndex = 0;
+  let replayPlaying = false;
 
   // ---------- screens ----------
   function showScreen(id){
@@ -1060,21 +1095,50 @@
   const camRec = document.getElementById('camRec');
   const vitalsBox = document.getElementById('vitals');
   const cameraToggleBtn = document.getElementById('cameraToggleBtn');
+  const camToggleRoomBtn = document.getElementById('camToggleRoomBtn');
+  let cameraBusy = false; // guards against double-clicks firing enable+disable at once
+
+  // Keeps the welcome-screen button AND the in-room button in sync, since the
+  // candidate can toggle the camera from either place (before or during the interview).
+  function syncCameraButtons(){
+    if (cameraEnabled){
+      cameraToggleBtn.textContent = '✅ Camera enabled — tap to turn off';
+      cameraToggleBtn.classList.add('on');
+      camToggleRoomBtn.textContent = '🎥 Disable camera';
+      camToggleRoomBtn.classList.add('cam-on');
+    } else {
+      cameraToggleBtn.textContent = '🎥 Enable camera for posture scoring';
+      cameraToggleBtn.classList.remove('on');
+      camToggleRoomBtn.textContent = '🎥 Enable camera';
+      camToggleRoomBtn.classList.remove('cam-on');
+    }
+  }
 
   async function enableCamera(){
+    if (cameraBusy) return;
+    cameraBusy = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 }, audio: false });
       cameraStream = stream;
       camVideo.srcObject = stream;
       cameraEnabled = true;
       camOff.style.display = 'none';
-      cameraToggleBtn.textContent = '✅ Camera enabled — tap to turn off';
-      cameraToggleBtn.classList.add('on');
       document.getElementById('cameraHint').textContent = 'Live posture scoring will run during your interview.';
+      syncCameraButtons();
       await ensurePoseModel();
+      // If the candidate turned the camera on mid-interview (not just from the
+      // welcome screen), start tracking immediately instead of waiting for the
+      // next question to kick it off.
+      if (interviewActive){
+        camMonitorPanel.style.display = 'block';
+        startPostureTracking();
+      }
     } catch (e) {
       cameraEnabled = false;
       document.getElementById('cameraHint').textContent = 'Camera permission denied or unavailable — continuing voice-only, that\'s completely fine.';
+      syncCameraButtons();
+    } finally {
+      cameraBusy = false;
     }
   }
   function disableCamera(){
@@ -1090,14 +1154,16 @@
     camMonitorPanel.style.display = 'none';
     vitalsBox.style.display = 'none';
     poseSamples = [];
-    cameraToggleBtn.textContent = '🎥 Enable camera for posture scoring';
-    cameraToggleBtn.classList.remove('on');
     document.getElementById('cameraHint').textContent = 'Analyzed entirely on your device, frame-by-frame — video is never uploaded. Only a numeric posture/eye-contact score is sent with each answer.';
+    syncCameraButtons();
   }
-  cameraToggleBtn.addEventListener('click', () => {
+  function toggleCamera(){
+    if (cameraBusy) return;
     if (cameraEnabled) disableCamera();
     else enableCamera();
-  });
+  }
+  cameraToggleBtn.addEventListener('click', toggleCamera);
+  camToggleRoomBtn.addEventListener('click', toggleCamera);
 
   async function ensurePoseModel(){
     if (poseLandmarker || poseLoadAttempted) return poseLandmarker;
@@ -1248,6 +1314,124 @@
     if (currentUtterResolve){ const r = currentUtterResolve; currentUtterResolve = null; r(); }
   }
   document.getElementById('skipBtn').addEventListener('click', skipVoiceover);
+
+  // ---------- report: full transcript + replay ----------
+  // "Replay" has no recorded audio to play back (nothing is ever uploaded/stored),
+  // so this re-reads the question and answer text via TTS while stepping through
+  // the timeline — a lightweight walkthrough rather than an audio/video recording.
+  const transcriptToggleBtn = document.getElementById('transcriptToggleBtn');
+  const replayToggleBtn = document.getElementById('replayToggleBtn');
+  const transcriptWrap = document.getElementById('transcriptWrap');
+  const replayWrap = document.getElementById('replayWrap');
+
+  function renderTranscript(){
+    transcriptWrap.innerHTML = '';
+    if (!currentTimeline.length){
+      transcriptWrap.innerHTML = '<div class="note-line"><span class="nt">No transcript recorded.</span></div>';
+      return;
+    }
+    currentTimeline.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'note-line';
+      row.style.flexDirection = 'column';
+      row.style.gap = '4px';
+      row.innerHTML =
+        '<span class="np">Q' + t.qNum + ' · ' + (t.topicTag||'') + '</span>' +
+        '<span style="color:var(--ink);">' + escapeHtml(t.question || '') + '</span>' +
+        '<span class="nt">' + escapeHtml(t.answer || '(no answer captured)') + '</span>';
+      transcriptWrap.appendChild(row);
+    });
+  }
+  function escapeHtml(s){
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+  transcriptToggleBtn.addEventListener('click', () => {
+    const show = transcriptWrap.style.display === 'none';
+    transcriptWrap.style.display = show ? 'block' : 'none';
+    if (show){ replayWrap.style.display = 'none'; stopReplay(); }
+  });
+
+  function resetReplay(){
+    stopReplay();
+    replayIndex = 0;
+    renderReplayStep();
+  }
+  function renderReplayStep(){
+    const counter = document.getElementById('replayCounter');
+    const qEl = document.getElementById('replayQuestion');
+    const aEl = document.getElementById('replayAnswer');
+    const fEl = document.getElementById('replayFeedback');
+    if (!currentTimeline.length){
+      counter.textContent = 'Q0 / 0';
+      qEl.textContent = 'No transcript recorded for this interview.';
+      aEl.textContent = ''; fEl.textContent = '';
+      return;
+    }
+    const t = currentTimeline[replayIndex];
+    counter.textContent = 'Q' + (replayIndex + 1) + ' / ' + currentTimeline.length;
+    qEl.textContent = t.question || '';
+    aEl.textContent = t.answer ? '“' + t.answer + '”' : '(no answer captured)';
+    fEl.textContent = t.evidenceFeedback || '';
+  }
+  let replayUtterResolve = null;
+  function replaySpeak(text){
+    return new Promise((resolve) => {
+      if (!window.speechSynthesis || !text){ resolve(); return; }
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      const v = pickVoiceForPersona(persona);
+      if (v) utter.voice = v;
+      replayUtterResolve = resolve;
+      utter.onend = () => { replayUtterResolve = null; resolve(); };
+      utter.onerror = () => { replayUtterResolve = null; resolve(); };
+      window.speechSynthesis.speak(utter);
+    });
+  }
+  function stopReplay(){
+    replayPlaying = false;
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (replayUtterResolve){ const r = replayUtterResolve; replayUtterResolve = null; r(); }
+    document.getElementById('replayPlayBtn').textContent = '▶ Play';
+  }
+  async function playReplayFromCurrent(){
+    replayPlaying = true;
+    document.getElementById('replayPlayBtn').textContent = '⏸ Pause';
+    while (replayPlaying && replayIndex < currentTimeline.length){
+      renderReplayStep();
+      const t = currentTimeline[replayIndex];
+      await replaySpeak('Question: ' + (t.question || ''));
+      if (!replayPlaying) break;
+      await replaySpeak(t.answer ? ('Candidate answered: ' + t.answer) : 'No answer was captured for this question.');
+      if (!replayPlaying) break;
+      replayIndex++;
+    }
+    if (replayIndex >= currentTimeline.length) replayIndex = Math.max(0, currentTimeline.length - 1);
+    replayPlaying = false;
+    document.getElementById('replayPlayBtn').textContent = '▶ Play';
+    renderReplayStep();
+  }
+  replayToggleBtn.addEventListener('click', () => {
+    const show = replayWrap.style.display === 'none';
+    replayWrap.style.display = show ? 'block' : 'none';
+    if (show){ transcriptWrap.style.display = 'none'; renderReplayStep(); }
+    else stopReplay();
+  });
+  document.getElementById('replayPlayBtn').addEventListener('click', () => {
+    if (replayPlaying) stopReplay();
+    else playReplayFromCurrent();
+  });
+  document.getElementById('replayPrevBtn').addEventListener('click', () => {
+    stopReplay();
+    replayIndex = Math.max(0, replayIndex - 1);
+    renderReplayStep();
+  });
+  document.getElementById('replayNextBtn').addEventListener('click', () => {
+    stopReplay();
+    replayIndex = Math.min(currentTimeline.length - 1, replayIndex + 1);
+    renderReplayStep();
+  });
 
   // ---------- STT (simple, used for the exit-confirmation prompt) ----------
   function listenOnce(){
@@ -1515,7 +1699,7 @@
     try {
       const res = await fetch(apiBase() + '/api/interview/start', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ topic: selectedTopic, persona, candidateName: userName, experience, interviewType, durationMinutes })
+        body: JSON.stringify({ topic: selectedTopic, persona, candidateName: userName, experience, interviewType, durationMinutes, resumeContext: document.getElementById('resumeInput').value.trim() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'failed to start');
@@ -1680,6 +1864,10 @@
       tl.appendChild(el);
     });
 
+    currentTimeline = data.timeline || [];
+    renderTranscript();
+    resetReplay();
+
     const rv = document.getElementById('revisionList');
     rv.innerHTML = '';
     data.revisionPlan.forEach(r => {
@@ -1712,6 +1900,7 @@
   }
 
   document.getElementById('restartBtn').addEventListener('click', () => {
+    stopReplay();
     stopInterview();
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
