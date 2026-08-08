@@ -1376,7 +1376,7 @@
   // natural pause, just triggered on demand.
   document.getElementById('doneAnsweringBtn').addEventListener('click', () => {
     manualStopRequested = true;
-    if (recognition && recognizing) {
+    if (recognition) {
       try { recognition.stop(); } catch (e) {}
     }
   });
@@ -1558,16 +1558,24 @@
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
 
-      // Deliberately NO timers, silence-clocks, or "give up after N restarts"
-      // guesswork here anymore — every version of that kept mis-firing in some
-      // edge case (submitting too early, hanging forever on background noise,
-      // or spinning up duplicate recognizer instances that re-asked the same
-      // question). The rule is now dead simple and 100% predictable: an
-      // answer finalizes ONLY when the candidate taps "I'm done — submit
-      // now", or says "exit interview". Any other natural stop (the
-      // browser's own silence heuristic) just restarts and keeps listening,
-      // no matter how many times, no matter how long the pause.
+      // Auto-submits after a real pause (like a real interviewer would), but
+      // ONLY via a single decision point in onend — the earlier bug was
+      // onerror AND onend BOTH independently deciding to restart at once,
+      // spinning up two parallel recognizer instances that re-asked the same
+      // question. That's fixed below (endHandled guard, onerror never
+      // restarts). With that fixed, the silence-based auto-submit is safe.
+      // The "I'm done" button and saying "exit interview" still work too, as
+      // an instant manual override on top of the automatic detection.
+      const SILENCE_GRACE_MS = 3000; // real pause (by OUR clock, not the browser's much
+        // shorter internal one) required before an answer auto-submits — long enough for a
+        // normal thinking pause, short enough to still feel like a live interviewer.
+      const HARD_TIMEOUT_MS = 45000; // absolute safety cap: if background noise keeps feeding
+        // tiny interim results, the "real silence" clock above could in theory never clear —
+        // this guarantees a submit of whatever was heard so far instead of listening forever.
+
       let finalTranscript = '';
+      let lastSpeechAt = Date.now();
+      const startedAt = Date.now();
       let fatalError = null; // set by onerror for a REAL mic failure; acted on in onend only
       manualStopRequested = false; // module-level flag; set by the "I'm done" button
 
@@ -1592,14 +1600,14 @@
             else interim += t;
           }
           const combined = (finalTranscript + ' ' + interim).trim();
+          if (combined) lastSpeechAt = Date.now(); // reset OUR silence clock whenever anything is heard
           if (!bargedIn && isAiSpeaking() && combined.replace(/\s/g, '').length >= 3){
             bargedIn = true;
             onBargeIn();
           }
           setCaption(combined || '…listening');
-          // "exit interview" needs to work hands-free even though we no longer
-          // auto-finalize on silence — catch it here and force an immediate stop
-          // instead of waiting for the candidate to tap the done button.
+          // "exit interview" should work hands-free — catch it immediately instead
+          // of waiting for the silence-based auto-submit below.
           if (!exitDetected && isExitCommand(combined)){
             exitDetected = true;
             manualStopRequested = true;
@@ -1629,11 +1637,28 @@
             reject(fatalError);
             return;
           }
-          startOne(); // the ONLY place a restart happens — always just keep listening
+          if (Date.now() - startedAt >= HARD_TIMEOUT_MS){
+            resolve(finalTranscript.trim()); // safety cap crossed — submit whatever was heard
+            return;
+          }
+          const silentFor = Date.now() - lastSpeechAt;
+          if (finalTranscript.trim() && silentFor >= SILENCE_GRACE_MS){
+            // Candidate said something AND has now genuinely paused — auto-submit, no button needed.
+            resolve(finalTranscript.trim());
+            return;
+          }
+          startOne(); // not silent long enough yet (or nothing said yet) — the ONLY restart path
         };
         recognition.start();
         recognizing = true;
         document.getElementById('micBtn').classList.add('on');
+        // Safety net: if "I'm done" was clicked in the brief gap between the
+        // previous cycle ending and this new one starting, the click's
+        // recognition.stop() call would have missed this instance entirely.
+        // Catch that here so the button never silently does nothing.
+        if (manualStopRequested){
+          try { recognition.stop(); } catch(e) {}
+        }
       }
       startOne();
     });
