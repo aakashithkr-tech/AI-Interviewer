@@ -4,11 +4,7 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const multer = require('multer');
 
 const app = express();
 app.use(cors());
@@ -244,9 +240,7 @@ async function retrieveCrossDayMemory(candidateKey, topic, k = 3) {
   return { items, dayCount: candidate.sessions.length };
 }
 
-// Persist a finished session's concepts (with embeddings) for future retrieval,
-// AND the full report object so History → "View Report" can re-render it exactly
-// as it looked right after the interview, without re-running the LLM.
+// Persist a finished session's concepts (with embeddings) for future retrieval.
 async function persistSession(candidateKey, session, report) {
   const store = loadStore();
   if (!store[candidateKey]) store[candidateKey] = { name: session.candidateName || candidateKey, sessions: [] };
@@ -268,13 +262,9 @@ async function persistSession(candidateKey, session, report) {
   store[candidateKey].sessions.push({
     sessionId: session.id,
     topic: session.topic,
-    interviewType: session.interviewType || 'Technical',
-    durationMinutes: session.targetMinutes,
-    questionCount: session.turns.length,
     date: new Date(session.startedAt).toISOString(),
     scores: report ? report.scores : null,
-    concepts,
-    report: report || null
+    concepts
   });
   // Keep it bounded so the file doesn't grow forever in a long demo.
   if (store[candidateKey].sessions.length > 60) store[candidateKey].sessions.shift();
@@ -283,97 +273,11 @@ async function persistSession(candidateKey, session, report) {
 
 // =====================================================================
 
-// =====================================================================
-// Auth — simple JWT + bcrypt, backed by the same dependency-free JSON
-// store pattern as the candidate RAG data (no DB build step needed).
-// The signing secret is generated once and persisted to disk so tokens
-// stay valid across server restarts even without a JWT_SECRET env var.
-// =====================================================================
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '{}');
-const SECRET_FILE = path.join(DATA_DIR, 'jwt_secret.txt');
-let JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  if (fs.existsSync(SECRET_FILE)) {
-    JWT_SECRET = fs.readFileSync(SECRET_FILE, 'utf8').trim();
-  } else {
-    JWT_SECRET = crypto.randomBytes(48).toString('hex');
-    fs.writeFileSync(SECRET_FILE, JWT_SECRET);
-  }
-}
-
-function loadUsers() {
-  try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); }
-  catch (e) { console.error('[users] read failed, starting fresh:', e.message); return {}; }
-}
-function saveUsers(users) {
-  try { fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2)); }
-  catch (e) { console.error('[users] write failed:', e.message); }
-}
-function publicUser(u) { return { id: u.id, name: u.name, email: u.email }; }
-function signToken(u) { return jwt.sign({ id: u.id, email: u.email }, JWT_SECRET, { expiresIn: '30d' }); }
-
-// Attaches req.user from the Bearer token; 401s if missing/invalid.
-function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'Not signed in' });
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    const users = loadUsers();
-    const user = users[payload.email];
-    if (!user || user.id !== payload.id) return res.status(401).json({ error: 'Session expired, please sign in again' });
-    req.user = publicUser(user);
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Session expired, please sign in again' });
-  }
-}
-
-app.post('/api/auth/signup', async (req, res) => {
-  try {
-    const { name = '', email = '', password = '' } = req.body || {};
-    const cleanEmail = String(email).trim().toLowerCase();
-    if (!name.trim() || !cleanEmail || !password) return res.status(400).json({ error: 'Name, email, and password are all required' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    const users = loadUsers();
-    if (users[cleanEmail]) return res.status(409).json({ error: 'An account with that email already exists' });
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = { id: uuidv4(), name: name.trim(), email: cleanEmail, passwordHash, createdAt: Date.now() };
-    users[cleanEmail] = user;
-    saveUsers(users);
-    res.json({ token: signToken(user), user: publicUser(user) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Signup failed', detail: err.message });
-  }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email = '', password = '' } = req.body || {};
-    const cleanEmail = String(email).trim().toLowerCase();
-    const users = loadUsers();
-    const user = users[cleanEmail];
-    if (!user) return res.status(401).json({ error: 'No account found with that email' });
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Incorrect password' });
-    res.json({ token: signToken(user), user: publicUser(user) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Login failed', detail: err.message });
-  }
-});
-
-app.get('/api/auth/me', requireAuth, (req, res) => {
-  res.json({ user: req.user });
-});
-
 const sessions = new Map();
 
 const MAX_QUESTIONS = parseInt(process.env.MAX_QUESTIONS || '20', 10); // absolute safety cap, not the normal ending condition
 const TARGET_MINUTES = parseFloat(process.env.INTERVIEW_MINUTES || '10'); // interview paces itself to roughly this long
-const MIN_QUESTIONS_BEFORE_TIME_END = 8; // product requirement: every interview must reach at least 8 questions
+const MIN_QUESTIONS_BEFORE_TIME_END = 5; // don't let it end too early even if the model rushes
 
 const PERSONAS = {
   friendly: 'Friendly and encouraging. Use warm phrasing, gentle nudges, light positive reinforcement ("Nice, can you go a little deeper?").',
@@ -444,16 +348,15 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, models: MODELS, keysConfigured: API_KEYS.length, groqFallback: !!GROQ_API_KEY });
 });
 
-app.post('/api/interview/start', requireAuth, async (req, res) => {
+app.post('/api/interview/start', async (req, res) => {
   try {
     const {
-      topic = 'Machine Learning & AI Systems', persona = 'friendly',
+      topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '',
       experience = 'Intermediate', interviewType = 'Technical', durationMinutes, resumeContext = ''
     } = req.body || {};
     const sessionId = uuidv4();
-    const candidateKey = req.user.id;
-    const candidateName = req.user.name;
-    const targetMinutes = [10, 15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES;
+    const candidateKey = slugKey(candidateName);
+    const targetMinutes = [15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES;
     // Cap length so a giant pasted resume/JD can't blow out prompt size or cost.
     const cleanResumeContext = String(resumeContext || '').trim().slice(0, 4000);
 
@@ -690,9 +593,10 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
 
 // Small endpoint the frontend can use to greet a returning candidate on the
 // welcome screen ("Welcome back — Day 4, last time: RAG, Vector DBs...").
-app.get('/api/me/summary', requireAuth, (req, res) => {
+app.get('/api/candidate/:name/summary', (req, res) => {
+  const key = slugKey(req.params.name);
   const store = loadStore();
-  const candidate = store[req.user.id];
+  const candidate = store[key];
   if (!candidate || !candidate.sessions.length) return res.json({ isReturning: false });
   const last = candidate.sessions[candidate.sessions.length - 1];
   res.json({
@@ -707,16 +611,17 @@ app.get('/api/me/summary', requireAuth, (req, res) => {
 // Powers the Dashboard's "Interview Readiness" / "Recent Interviews" and the
 // Report's "Progress" trend — derived from the same candidate store used for
 // cross-day RAG linking, no extra persistence needed.
-app.get('/api/dashboard', requireAuth, (req, res) => {
+app.get('/api/candidate/:name/history', (req, res) => {
+  const key = slugKey(req.params.name);
   const store = loadStore();
-  const candidate = store[req.user.id];
+  const candidate = store[key];
   if (!candidate || !candidate.sessions.length) return res.json({ hasHistory: false });
 
   const scored = candidate.sessions.filter(s => s.scores && typeof s.scores.hiringProbability === 'number');
   if (!scored.length) return res.json({ hasHistory: false });
 
   const recent = scored.slice(-8).reverse(); // newest first, for the "Recent Interviews" list
-  const trend = scored.slice(-5).map(s => s.scores.hiringProbability); // oldest -> newest, for trend chips
+  const trend = scored.slice(-5).map(s => s.scores.hiringProbability); // oldest -> newest, for the report trend line
   const readiness = trend[trend.length - 1];
 
   const latestScores = recent[0].scores;
@@ -746,84 +651,8 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     trend,
     skillBars,
     weakest,
-    recent: recent.map(s => ({ topic: s.topic, date: s.date, score: s.scores.hiringProbability }))
+    sessions: recent.map(s => ({ topic: s.topic, date: s.date, score: s.scores.hiringProbability }))
   });
-});
-
-// Full interview history, optionally filtered by interview type, plus the
-// same progress trend shown on the dashboard/report (kept consistent across all three).
-app.get('/api/history', requireAuth, (req, res) => {
-  const store = loadStore();
-  const candidate = store[req.user.id];
-  if (!candidate || !candidate.sessions.length) return res.json({ interviews: [], trend: [] });
-
-  const typeFilter = req.query.type;
-  const scored = candidate.sessions.filter(s => s.scores && typeof s.scores.hiringProbability === 'number');
-  const trend = scored.slice(-5).map(s => s.scores.hiringProbability);
-
-  let list = [...scored].reverse(); // newest first
-  if (typeFilter && typeFilter !== 'All') list = list.filter(s => (s.interviewType || 'Technical') === typeFilter);
-
-  res.json({
-    interviews: list.map(s => ({
-      id: s.sessionId,
-      topic: s.topic,
-      interviewType: s.interviewType || 'Technical',
-      durationMinutes: s.durationMinutes,
-      questionCount: s.questionCount,
-      date: s.date,
-      score: s.scores.hiringProbability
-    })),
-    trend
-  });
-});
-
-// Re-opens a past session's full report (built at the time the interview
-// finished) so History → "View Report" / "Replay" work without re-scoring.
-app.get('/api/history/:sessionId', requireAuth, (req, res) => {
-  const store = loadStore();
-  const candidate = store[req.user.id];
-  const entry = candidate && candidate.sessions.find(s => s.sessionId === req.params.sessionId);
-  if (!entry || !entry.report) return res.status(404).json({ error: 'Report not found' });
-  res.json({ report: entry.report });
-});
-
-// ---------- resume / JD upload — extracts raw text + a quick skill scan ----------
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-const KNOWN_SKILLS = [
-  'Java', 'JavaScript', 'TypeScript', 'Python', 'C++', 'C#', 'Go', 'Rust',
-  'React', 'Angular', 'Vue', 'Node.js', 'Express', 'Spring Boot', 'Django', 'Flask',
-  'MongoDB', 'MySQL', 'PostgreSQL', 'Redis', 'Firebase', 'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes',
-  'Flutter', 'React Native', 'Android', 'iOS', 'GraphQL', 'REST API', 'Machine Learning',
-  'TensorFlow', 'PyTorch', 'Git', 'CI/CD', 'Kafka', 'RabbitMQ', 'Microservices', 'DSA'
-];
-function detectSkills(text) {
-  const lower = text.toLowerCase();
-  return KNOWN_SKILLS.filter(sk => lower.includes(sk.toLowerCase()));
-}
-app.post('/api/resume/parse', requireAuth, upload.single('resume'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { originalname, mimetype, size, buffer } = req.file;
-    let text = '';
-    if (mimetype === 'application/pdf' || originalname.toLowerCase().endsWith('.pdf')) {
-      const pdfParse = require('pdf-parse');
-      const parsed = await pdfParse(buffer);
-      text = parsed.text || '';
-    } else if (originalname.toLowerCase().endsWith('.docx') || mimetype.includes('wordprocessingml')) {
-      const mammoth = require('mammoth');
-      const parsed = await mammoth.extractRawText({ buffer });
-      text = parsed.value || '';
-    } else {
-      return res.status(400).json({ error: 'Only PDF or DOCX files are supported' });
-    }
-    text = text.trim().slice(0, 6000); // keep it bounded for prompt-size sanity
-    if (!text) return res.status(422).json({ error: 'Could not extract any text from that file — try pasting the text instead' });
-    res.json({ text, filename: originalname, sizeBytes: size, skills: detectSkills(text) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Could not parse that file', detail: err.message });
-  }
 });
 
 function clamp(val, min, max, fallback) {
