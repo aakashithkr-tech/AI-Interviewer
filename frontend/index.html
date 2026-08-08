@@ -1558,15 +1558,16 @@
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
 
-      const SILENCE_GRACE_MS = 2500; // real, our-own-clock silence required before we call an answer "finished"
-      const MAX_EMPTY_RESTARTS = 12; // give up only if truly nothing is ever heard
-      const HARD_TIMEOUT_MS = 45000; // absolute safety cap against background noise keeping the
-        // silence clock from ever clearing — forces a submit of whatever was heard once crossed.
-
+      // Deliberately NO timers, silence-clocks, or "give up after N restarts"
+      // guesswork here anymore — every version of that kept mis-firing in some
+      // edge case (submitting too early, hanging forever on background noise,
+      // or spinning up duplicate recognizer instances that re-asked the same
+      // question). The rule is now dead simple and 100% predictable: an
+      // answer finalizes ONLY when the candidate taps "I'm done — submit
+      // now", or says "exit interview". Any other natural stop (the
+      // browser's own silence heuristic) just restarts and keeps listening,
+      // no matter how many times, no matter how long the pause.
       let finalTranscript = '';
-      let lastSpeechAt = Date.now();
-      let emptyRestarts = 0;
-      const startedAt = Date.now();
       let fatalError = null; // set by onerror for a REAL mic failure; acted on in onend only
       manualStopRequested = false; // module-level flag; set by the "I'm done" button
 
@@ -1581,6 +1582,7 @@
           // stopped instance and each independently deciding to restart — that double-restart
           // was spinning up two parallel recognizer instances at once, which is what caused the
           // exact same question to get re-asked over and over instead of accepting the answer.
+        let exitDetected = false;
 
         recognition.onresult = (event) => {
           let interim = '';
@@ -1590,12 +1592,19 @@
             else interim += t;
           }
           const combined = (finalTranscript + ' ' + interim).trim();
-          if (combined) lastSpeechAt = Date.now(); // reset OUR silence clock, not just a retry counter
           if (!bargedIn && isAiSpeaking() && combined.replace(/\s/g, '').length >= 3){
             bargedIn = true;
             onBargeIn();
           }
           setCaption(combined || '…listening');
+          // "exit interview" needs to work hands-free even though we no longer
+          // auto-finalize on silence — catch it here and force an immediate stop
+          // instead of waiting for the candidate to tap the done button.
+          if (!exitDetected && isExitCommand(combined)){
+            exitDetected = true;
+            manualStopRequested = true;
+            try { recognition.stop(); } catch(e) {}
+          }
         };
         recognition.onerror = (e) => {
           recognizing = false;
@@ -1620,28 +1629,7 @@
             reject(fatalError);
             return;
           }
-          if (Date.now() - startedAt >= HARD_TIMEOUT_MS){
-            resolve(finalTranscript.trim());
-            return;
-          }
-          const silentFor = Date.now() - lastSpeechAt;
-          if (finalTranscript.trim() && silentFor >= SILENCE_GRACE_MS){
-            // Candidate said something AND has now genuinely paused — done answering.
-            resolve(finalTranscript.trim());
-            return;
-          }
-          if (finalTranscript.trim()){
-            // Said something, but not silent long enough by our own clock yet —
-            // the browser cut the session short mid-thought. Keep listening.
-            emptyRestarts = 0;
-          } else {
-            emptyRestarts++;
-            if (emptyRestarts >= MAX_EMPTY_RESTARTS){
-              resolve(''); // genuinely nothing heard — let the caller show "didn't catch that"
-              return;
-            }
-          }
-          startOne(); // the ONLY place a restart happens
+          startOne(); // the ONLY place a restart happens — always just keep listening
         };
         recognition.start();
         recognizing = true;
