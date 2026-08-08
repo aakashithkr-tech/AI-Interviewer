@@ -21,9 +21,12 @@ const PORT = process.env.PORT || 3000;
 const RAW_KEYS = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
 const API_KEYS = RAW_KEYS.split(',').map(k => k.trim()).filter(Boolean);
 // Try multiple models in order — if one model's quota is exhausted (common on
-// free tier), fall back to the next. Override with GEMINI_MODELS in .env
-// (comma-separated) if you want a different order.
-const RAW_MODELS = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || 'gemini-2.0-flash,gemini-2.0-flash-lite';
+// free tier), fall back to the next. gemini-2.0-flash-lite goes FIRST now:
+// it's the lower-latency model and the live per-turn loop (the thing the
+// candidate is actually waiting on) cares about speed far more than the
+// marginal quality gain of full "flash". Override with GEMINI_MODELS in
+// .env (comma-separated) if you want a different order.
+const RAW_MODELS = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite,gemini-2.0-flash';
 const MODELS = RAW_MODELS.split(',').map(m => m.trim()).filter(Boolean);
 const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'text-embedding-004';
 
@@ -48,26 +51,43 @@ async function fetchWithTimeout(url, options, timeoutMs = 12000) {
   }
 }
 
-async function callGemini(systemPrompt, userPrompt, { json = true } = {}) {
+// Per-attempt timeout AND a global wall-clock budget for the whole
+// model x key cascade. Previously only the per-attempt timeout existed
+// (7000ms) — with 2 models x N keys, a bad key/model combo could still eat
+// 7s * 2 * N before ever reaching Groq. That's the single biggest
+// contributor to "next question feels slow": every one of those seconds is
+// dead air after the candidate already stopped talking. Now the whole
+// Gemini cascade is capped at GEMINI_BUDGET_MS (default 4500ms) — as soon as
+// that's exceeded we stop trying more models/keys and fail over to Groq
+// (or the raw error) immediately, instead of grinding through every
+// remaining combination.
+async function callGemini(systemPrompt, userPrompt, { json = true, maxOutputTokens = 1024, attemptTimeoutMs = 5000, budgetMs = 4500 } = {}) {
   let lastErr = null;
+  const cascadeStart = Date.now();
   for (const model of MODELS) {
     for (let i = 0; i < Math.max(API_KEYS.length, 1); i++) {
+      if (Date.now() - cascadeStart > budgetMs) {
+        console.warn(`[latency] gemini cascade budget (${budgetMs}ms) exceeded — bailing to Groq/fallback`);
+        throw lastErr || new Error('Gemini cascade exceeded latency budget');
+      }
       const key = API_KEYS[i];
       if (!key) continue;
+      const attemptStart = Date.now();
       try {
-        // Google migrated to "Auth" keys (prefix "AQ.") in 2026, which must be sent
-        // via the X-goog-api-key header rather than the old ?key= query param.
-        // The header works for legacy "AIzaSy..." Standard keys too, so this is safe either way.
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         const body = {
           contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
           systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 1024,
+            maxOutputTokens,
             ...(json ? { responseMimeType: 'application/json' } : {})
           }
         };
+        // Remaining budget also caps this specific attempt, so the last
+        // attempt before the budget expires can't itself blow the budget.
+        const remainingBudget = budgetMs - (Date.now() - cascadeStart);
+        const thisAttemptTimeout = Math.max(1000, Math.min(attemptTimeoutMs, remainingBudget));
         const res = await fetchWithTimeout(url, {
           method: 'POST',
           headers: {
@@ -75,7 +95,7 @@ async function callGemini(systemPrompt, userPrompt, { json = true } = {}) {
             'X-goog-api-key': key
           },
           body: JSON.stringify(body)
-        }, 12000);
+        }, thisAttemptTimeout);
         if (!res.ok) {
           const text = await res.text();
           throw new Error(`[${model}] key #${i + 1} failed: ${res.status} ${text.slice(0, 200)}`);
@@ -83,70 +103,75 @@ async function callGemini(systemPrompt, userPrompt, { json = true } = {}) {
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
         if (!text) throw new Error(`[${model}] key #${i + 1} returned empty content`);
+        console.log(`[latency] gemini ${model} key#${i + 1} OK in ${Date.now() - attemptStart}ms`);
         return text;
       } catch (err) {
-        console.error(`[${model}] key #${i + 1}:`, err.message);
+        console.error(`[latency] gemini ${model} key#${i + 1} FAILED in ${Date.now() - attemptStart}ms:`, err.message);
         lastErr = err;
-        // try next key, then next model
       }
     }
   }
   throw lastErr || new Error('All Gemini keys/models failed');
 }
 
-// ---------- Groq fallback (free, instant key, no billing needed) ----------
-// If ALL Gemini keys/models fail (e.g. Google free-tier quota issues), fall
-// back to Groq so the demo never fully breaks. Get a free key instantly at
-// https://console.groq.com/keys — no credit card required.
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
-async function callGroq(systemPrompt, userPrompt, { json = true } = {}) {
-  const res = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 1024,
-      ...(json ? { response_format: { type: 'json_object' } } : {})
-    })
-  }, 12000);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Groq failed: ${res.status} ${text.slice(0, 200)}`);
+async function callGroq(systemPrompt, userPrompt, { json = true, maxOutputTokens = 1024, attemptTimeoutMs = 5000 } = {}) {
+  const attemptStart = Date.now();
+  try {
+    const res = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: maxOutputTokens,
+        ...(json ? { response_format: { type: 'json_object' } } : {})
+      })
+    }, attemptTimeoutMs);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Groq failed: ${res.status} ${text.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content || '';
+    if (!text) throw new Error('Groq returned empty content');
+    console.log(`[latency] groq OK in ${Date.now() - attemptStart}ms`);
+    return text;
+  } catch (err) {
+    console.error(`[latency] groq FAILED in ${Date.now() - attemptStart}ms:`, err.message);
+    throw err;
   }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content || '';
-  if (!text) throw new Error('Groq returned empty content');
-  return text;
 }
 
-// ---------- unified LLM call: Gemini first, Groq as last-resort fallback ----------
 async function callLLM(systemPrompt, userPrompt, opts = {}) {
+  const start = Date.now();
   try {
-    return await callGemini(systemPrompt, userPrompt, opts);
+    const result = await callGemini(systemPrompt, userPrompt, opts);
+    console.log(`[latency] callLLM total (gemini path) ${Date.now() - start}ms`);
+    return result;
   } catch (geminiErr) {
     if (!GROQ_API_KEY) throw geminiErr;
-    console.error('[fallback] All Gemini options failed, trying Groq…');
+    console.error('[fallback] Gemini cascade failed/timed out, trying Groq…');
     try {
-      return await callGroq(systemPrompt, userPrompt, opts);
+      const result = await callGroq(systemPrompt, userPrompt, opts);
+      console.log(`[latency] callLLM total (groq fallback path) ${Date.now() - start}ms`);
+      return result;
     } catch (groqErr) {
-      console.error(groqErr.message);
-      throw geminiErr; // surface the original (more informative) error
+      throw geminiErr;
     }
   }
 }
 
 function safeParseJSON(text) {
-  // strip accidental markdown fences just in case
   const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
   try {
     return JSON.parse(cleaned);
@@ -156,15 +181,6 @@ function safeParseJSON(text) {
   }
 }
 
-// =====================================================================
-// RAG memory store — cross-day linking
-// A lightweight, dependency-free JSON store (no native DB build step,
-// so it deploys cleanly on Render's free tier). Each candidate's past
-// sessions are kept with an embedding per covered concept; new sessions
-// retrieve the most semantically-relevant past concepts via cosine
-// similarity so the interviewer can weave in genuine "you covered X on
-// Day 3, now let's connect it to Y" continuity — not just random recall.
-// =====================================================================
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'candidates.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -182,16 +198,22 @@ function slugKey(name) {
   return (name || 'guest').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'guest';
 }
 
+// Embeddings are only used for cross-day memory (once at /start) and for
+// persisting concepts after the interview ends — never on the hot per-turn
+// path. Still, they previously used bare `fetch` with no timeout, so a
+// hung embedding call could stall /start indefinitely. Now timeout-guarded
+// and short (3s) since a missed embedding just falls back to keyword
+// overlap scoring, which is fine.
 async function embedText(text) {
   if (!API_KEYS.length) return null;
   for (const key of API_KEYS) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent`;
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-goog-api-key': key },
         body: JSON.stringify({ content: { parts: [{ text }] } })
-      });
+      }, 3000);
       if (!res.ok) continue;
       const data = await res.json();
       const values = data?.embedding?.values;
@@ -215,8 +237,6 @@ function keywordOverlapScore(a, b) {
   return hits / Math.max(1, Math.min(wa.size, wb.size));
 }
 
-// Retrieve the top-K most relevant past concepts for this candidate,
-// across ALL previous sessions/days — this is the actual "RAG" step.
 async function retrieveCrossDayMemory(candidateKey, topic, k = 3) {
   const store = loadStore();
   const candidate = store[candidateKey];
@@ -240,24 +260,27 @@ async function retrieveCrossDayMemory(candidateKey, topic, k = 3) {
   return { items, dayCount: candidate.sessions.length };
 }
 
-// Persist a finished session's concepts (with embeddings) for future retrieval.
 async function persistSession(candidateKey, session, report) {
   const store = loadStore();
   if (!store[candidateKey]) store[candidateKey] = { name: session.candidateName || candidateKey, sessions: [] };
 
-  // Build one concept entry per distinct topicTag covered this session.
   const byTag = new Map();
   session.turns.forEach(t => {
     if (!byTag.has(t.topicTag)) byTag.set(t.topicTag, []);
     byTag.get(t.topicTag).push(t);
   });
-  const concepts = [];
-  for (const [tag, turns] of byTag.entries()) {
+  // Concept embeddings only happen once, at the very end of the interview
+  // (never per-turn), and this call is fire-and-forget from the /report
+  // route (it doesn't block the response) — but there's no reason to make
+  // the candidate's browser or the server wait on N sequential embedding
+  // calls when they're all independent. Parallelized with Promise.all.
+  const tags = [...byTag.entries()];
+  const concepts = await Promise.all(tags.map(async ([tag, turns]) => {
     const avgComp = Math.round(turns.reduce((a, t) => a + t.competence, 0) / turns.length);
     const summary = `${tag} (avg competence ${avgComp}%, ${turns.length} question(s))`;
     const embedding = await embedText(`${tag}: ${turns.map(t => t.evidenceFeedback).join('. ')}`);
-    concepts.push({ tag, summary, avgCompetence: avgComp, embedding });
-  }
+    return { tag, summary, avgCompetence: avgComp, embedding };
+  }));
 
   store[candidateKey].sessions.push({
     sessionId: session.id,
@@ -266,18 +289,15 @@ async function persistSession(candidateKey, session, report) {
     scores: report ? report.scores : null,
     concepts
   });
-  // Keep it bounded so the file doesn't grow forever in a long demo.
   if (store[candidateKey].sessions.length > 60) store[candidateKey].sessions.shift();
   saveStore(store);
 }
 
-// =====================================================================
-
 const sessions = new Map();
 
-const MAX_QUESTIONS = parseInt(process.env.MAX_QUESTIONS || '20', 10); // absolute safety cap, not the normal ending condition
-const TARGET_MINUTES = parseFloat(process.env.INTERVIEW_MINUTES || '10'); // interview paces itself to roughly this long
-const MIN_QUESTIONS_BEFORE_TIME_END = 5; // don't let it end too early even if the model rushes
+const MAX_QUESTIONS = parseInt(process.env.MAX_QUESTIONS || '20', 10);
+const TARGET_MINUTES = parseFloat(process.env.INTERVIEW_MINUTES || '10');
+const MIN_QUESTIONS_BEFORE_TIME_END = 5;
 
 const PERSONAS = {
   friendly: 'Friendly and encouraging. Use warm phrasing, gentle nudges, light positive reinforcement ("Nice, can you go a little deeper?").',
@@ -300,23 +320,25 @@ Candidate experience level: ${experience || 'Intermediate'} — calibrate questi
 ${resumeContext ? `\nCandidate's resume / target job description (use this to tailor questions to their actual claimed experience — probe specific technologies, projects, or responsibilities they mention, and don't be afraid to test whether they can really back up a claim on their resume):\n"""\n${resumeContext}\n"""\n` : ''}
 This is a TIME-BOXED interview targeting roughly ${targetMinutes} minutes total, not a fixed question count. Pace yourself against the elapsed time you're given each turn — don't stop after a small fixed number of questions, and don't run drastically over the target either.
 ${memoryContext ? `\n${memoryContext}\n` : ''}
-Your job every turn:
+Your job every turn — keep this LIGHTWEIGHT, this is a live low-latency loop, not the final report:
 1. Judge the candidate's latest answer for CORRECTNESS (correct / partial / incorrect) and COMPETENCE (0-100).
 2. Separately judge CONFIDENCE (0-100) from the way they spoke — hedging words like "umm", "I think", "maybe", "not sure" lower confidence even if the content is correct; assertive phrasing raises it even if the content is wrong. Confidence and competence are independent signals — call out mismatches (e.g. low confidence + correct answer, or high confidence + wrong answer).
 3. Adapt difficulty: if the answer is strong, ask a harder follow-up on the SAME thread (dig deeper, don't just jump randomly). If the answer is weak, step back to a simpler foundational question on the same concept before moving on. Track difficulty on a 1-5 scale.
 4. BREADTH RULE: don't dig into one single concept/thread indefinitely. After at most 2-3 consecutive questions deepening one specific thread (e.g. stacks), deliberately move to a different but related core concept within the same subject (e.g. queues, trees, hashing, recursion — whatever fits "${topic}") so the interview covers a spread of the subject, not just one corner of it.
-5. Give evidence-based feedback: quote or closely paraphrase a short specific piece of what the candidate said and explain what it reveals. Never give generic feedback like "weak in X" without pointing to the specific statement that shows it.
+5. Give ONE short evidence-based feedback sentence: paraphrase a short specific piece of what the candidate said and what it reveals. Keep it to one sentence — this is a live-pace check, not written feedback. Never give generic feedback like "weak in X" without pointing to the specific statement that shows it.
 6. Write a short INTERNAL interviewer's note (5-12 words, like a scratchpad jotting a human interviewer would make, e.g. "Couldn't justify embedding choice, needed a hint") — never shown to the candidate live, only in the final report.
 7. If relevant past concepts were provided above, occasionally (not every turn) weave in a genuine cross-day linking question that asks the candidate to connect the current topic to something they covered before — this is the single most valuable kind of question, use it when it fits naturally.
 8. Decide the next question, building a natural thread within whichever subtopic you're currently on.
 9. End the interview (set "done": true, "nextQuestion": "") once you judge the subject has been reasonably covered for a ${targetMinutes}-minute session, or when told elapsed time is at/past target — whichever comes first. Do not end before at least ${MIN_QUESTIONS_BEFORE_TIME_END} questions have been asked.
+
+Do NOT attempt full scoring, communication analysis, or a hiring recommendation here — that is a separate, one-time step run only after the interview ends. Keep this response minimal and fast.
 
 Always reply with STRICT JSON only, no markdown, matching this schema exactly:
 {
   "verdict": "correct" | "partial" | "incorrect",
   "competence": <0-100 integer>,
   "confidence": <0-100 integer>,
-  "evidenceFeedback": "<one or two sentences, quoting/paraphrasing the candidate's own words>",
+  "evidenceFeedback": "<ONE short sentence, quoting/paraphrasing the candidate's own words>",
   "interviewerNote": "<short internal scratchpad note, 5-12 words>",
   "nextDifficulty": <1-5 integer>,
   "nextQuestion": "<the next interview question, in the persona's tone, or empty string if done>",
@@ -349,6 +371,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/interview/start', async (req, res) => {
+  const t0 = Date.now();
   try {
     const {
       topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '',
@@ -357,16 +380,20 @@ app.post('/api/interview/start', async (req, res) => {
     const sessionId = uuidv4();
     const candidateKey = slugKey(candidateName);
     const targetMinutes = [15, 30, 45].includes(Number(durationMinutes)) ? Number(durationMinutes) : TARGET_MINUTES;
-    // Cap length so a giant pasted resume/JD can't blow out prompt size or cost.
     const cleanResumeContext = String(resumeContext || '').trim().slice(0, 4000);
 
+    const tMemStart = Date.now();
     const memory = await retrieveCrossDayMemory(candidateKey, topic, 3);
     const memoryContext = formatMemoryContext(memory);
+    const memMs = Date.now() - tMemStart;
 
+    const tLlmStart = Date.now();
     const raw = await callLLM(
       'You are an interview question generator. Reply with strict JSON only.',
-      buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience, cleanResumeContext)
+      buildFirstQuestionPrompt(persona, topic, memoryContext, interviewType, experience, cleanResumeContext),
+      { maxOutputTokens: 250, attemptTimeoutMs: 5000, budgetMs: 4500 } // tiny schema — no need for a big budget/token cap
     );
+    const llmMs = Date.now() - tLlmStart;
     const parsed = safeParseJSON(raw) || {
       nextQuestion: `Let's start with the basics — can you explain what ${topic} means in your own words?`,
       nextDifficulty: 2,
@@ -394,6 +421,9 @@ app.post('/api/interview/start', async (req, res) => {
     };
     sessions.set(sessionId, session);
 
+    const totalMs = Date.now() - t0;
+    console.log(`[latency] /start memMs=${memMs} llmMs=${llmMs} totalMs=${totalMs}`);
+
     res.json({
       sessionId,
       question: parsed.nextQuestion,
@@ -403,7 +433,8 @@ app.post('/api/interview/start', async (req, res) => {
       crossDayLink: !!parsed.crossDayLink,
       dayNumber: memory.dayCount + 1,
       linkedConcepts: memory.items.map(c => c.tag),
-      done: false
+      done: false,
+      timingMs: { memMs, llmMs, totalMs }
     });
   } catch (err) {
     console.error(err);
@@ -411,7 +442,42 @@ app.post('/api/interview/start', async (req, res) => {
   }
 });
 
+// Keeps only the last N turns verbatim, and folds anything older into a
+// compact one-line aggregate (tags + average competence) instead of full
+// Q&A text. Without this, transcript size — and therefore prompt tokens and
+// per-turn LLM latency — grows without bound as the interview goes on; by
+// question 15 the model was re-reading 14 full Q&A exchanges every single
+// turn just to decide question 15. Recent turns still get full detail since
+// that's what actually matters for "ask a harder follow-up on the same
+// thread" (rule 3) and "don't dig into one thread too long" (rule 4).
+const RECENT_TURNS_FULL_DETAIL = 4;
+function buildCompactTranscript(turns) {
+  if (turns.length <= RECENT_TURNS_FULL_DETAIL) {
+    return turns.map((t, i) =>
+      `Q${i + 1} (difficulty ${t.difficulty}): ${t.question}\nCandidate: ${t.answer}\nVerdict: ${t.verdict}, competence ${t.competence}, confidence ${t.confidence}`
+    ).join('\n\n');
+  }
+  const older = turns.slice(0, turns.length - RECENT_TURNS_FULL_DETAIL);
+  const recent = turns.slice(turns.length - RECENT_TURNS_FULL_DETAIL);
+
+  const tagStats = new Map();
+  older.forEach(t => {
+    if (!tagStats.has(t.topicTag)) tagStats.set(t.topicTag, []);
+    tagStats.get(t.topicTag).push(t.competence);
+  });
+  const summaryLine = 'Earlier in this interview (Q1-Q' + older.length + '), covered: ' +
+    [...tagStats.entries()].map(([tag, arr]) => `${tag} (avg ${Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)}%)`).join(', ') + '.';
+
+  const recentText = recent.map((t, i) => {
+    const qNum = older.length + i + 1;
+    return `Q${qNum} (difficulty ${t.difficulty}): ${t.question}\nCandidate: ${t.answer}\nVerdict: ${t.verdict}, competence ${t.competence}, confidence ${t.confidence}`;
+  }).join('\n\n');
+
+  return summaryLine + '\n\n' + recentText;
+}
+
 app.post('/api/interview/answer', async (req, res) => {
+  const t0 = Date.now();
   try {
     const { sessionId, answer, visualConfidence } = req.body || {};
     const session = sessions.get(sessionId);
@@ -425,10 +491,9 @@ app.post('/api/interview/answer', async (req, res) => {
     const overTime = elapsedMin >= targetMinutes && questionNumber > MIN_QUESTIONS_BEFORE_TIME_END;
     const hitAbsoluteCap = questionNumber >= MAX_QUESTIONS;
 
-    // Build conversation transcript for context
-    const transcript = session.turns.map((t, i) =>
-      `Q${i + 1} (difficulty ${t.difficulty}): ${t.question}\nCandidate: ${t.answer}\nVerdict: ${t.verdict}, competence ${t.competence}, confidence ${t.confidence}`
-    ).join('\n\n');
+    // Lightweight, bounded-size transcript context — see buildCompactTranscript above.
+    // This keeps per-turn latency roughly flat instead of growing with interview length.
+    const transcript = buildCompactTranscript(session.turns);
 
     const memoryContext = formatMemoryContext(session.memory);
 
@@ -446,21 +511,27 @@ Current question asked: ${session._pendingQuestion}
 Candidate's spoken answer (transcribed): "${answer}"
 ${hasVisualForPrompt ? `On-device webcam posture/eye-contact score for this answer: ${Math.round(visualConfidence)}/100 (derived from shoulder level, head position, and gaze steadiness — a rough physical-presence signal, separate from vocal tone). Weigh this alongside vocal cues for your CONFIDENCE judgment, and if it clearly diverges from what the words/tone suggest (e.g. strong words but poor posture score, or shaky words but steady posture), you may briefly note that mismatch in evidenceFeedback.` : ''}
 
-Evaluate this answer and produce the next step, per the schema.${overTime || hitAbsoluteCap ? ' Time is up (or the safety question cap was hit) — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
+Evaluate this answer and produce the next step, per the schema. Keep evidenceFeedback to ONE short sentence — this is a live low-latency turn, not the final report.${overTime || hitAbsoluteCap ? ' Time is up (or the safety question cap was hit) — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
 
+    const tLlmStart = Date.now();
     const raw = await callLLM(
       buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience, session.resumeContext),
-      userPrompt
+      userPrompt,
+      // This is the hottest path in the whole app — the candidate is staring
+      // at "Processing…" waiting on it. Small token budget (the schema is
+      // short), a short per-attempt timeout, and a tight overall cascade
+      // budget (4.5s) so a bad key/model never turns into multi-second dead
+      // air; if Gemini can't answer inside that budget we fail over to Groq
+      // (which is itself fast) rather than exhausting every combination.
+      { maxOutputTokens: 350, attemptTimeoutMs: 4500, budgetMs: 4500 }
     );
+    const llmMs = Date.now() - tLlmStart;
     const parsed = safeParseJSON(raw);
 
     if (!parsed) {
       return res.status(502).json({ error: 'Model returned unparsable response' });
     }
 
-    // Blend the model's vocal-cue confidence read with the on-device
-    // posture/eye-contact signal from the webcam (if the candidate enabled
-    // the camera). Vocal cues stay the majority signal; posture nudges it.
     const vocalConfidence = clamp(parsed.confidence, 0, 100, 50);
     const hasVisual = typeof visualConfidence === 'number' && !Number.isNaN(visualConfidence);
     const blendedConfidence = hasVisual
@@ -491,6 +562,9 @@ Evaluate this answer and produce the next step, per the schema.${overTime || hit
     session.difficulty = clamp(parsed.nextDifficulty, 1, 5, session.difficulty);
     session._pendingQuestion = isDone ? null : (parsed.nextQuestion || '');
 
+    const totalMs = Date.now() - t0;
+    console.log(`[latency] /answer Q${questionNumber} llmMs=${llmMs} totalMs=${totalMs} transcriptChars=${transcript.length}`);
+
     res.json({
       sessionId,
       verdict: turn.verdict,
@@ -503,7 +577,8 @@ Evaluate this answer and produce the next step, per the schema.${overTime || hit
       elapsedMinutes: Math.round(elapsedMin * 10) / 10,
       targetMinutes,
       crossDayLink: turn.crossDayLink,
-      done: isDone
+      done: isDone,
+      timingMs: { llmMs, totalMs }
     });
   } catch (err) {
     console.error(err);
@@ -511,7 +586,9 @@ Evaluate this answer and produce the next step, per the schema.${overTime || hit
   }
 });
 
+// ---- Heavy analysis lives ONLY here, run once at the end, never per-turn ----
 app.get('/api/interview/:sessionId/report', async (req, res) => {
+  const t0 = Date.now();
   try {
     const session = sessions.get(req.params.sessionId);
     if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -547,7 +624,6 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
       crossDayLink: t.crossDayLink
     }));
 
-    // ---- Skill radar: average competence per distinct concept tag ----
     const byTag = new Map();
     turns.forEach(t => {
       if (!byTag.has(t.topicTag)) byTag.set(t.topicTag, []);
@@ -556,10 +632,9 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
     const skillRadar = [...byTag.entries()].map(([tag, arr]) => ({
       tag,
       score: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
-      stars: Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) / 20 * 2) / 2 // nearest 0.5, out of 5
+      stars: Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) / 20 * 2) / 2
     }));
 
-    // ---- Interviewer's notes (hidden scratchpad, revealed only here) ----
     const interviewerNotes = turns.filter(t => t.interviewerNote).map(t => ({
       qNum: t.qNum, note: t.interviewerNote, topicTag: t.topicTag
     }));
@@ -581,9 +656,9 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
       totalEstimatedMinutes: uniqueWeak.length * 15
     };
 
-    // Fire-and-forget: persist this session's concepts for future cross-day RAG retrieval.
     persistSession(session.candidateKey, session, report).catch(e => console.error('[persist]', e.message));
 
+    console.log(`[latency] /report totalMs=${Date.now() - t0}`);
     res.json(report);
   } catch (err) {
     console.error(err);
@@ -591,8 +666,6 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
   }
 });
 
-// Small endpoint the frontend can use to greet a returning candidate on the
-// welcome screen ("Welcome back — Day 4, last time: RAG, Vector DBs...").
 app.get('/api/candidate/:name/summary', (req, res) => {
   const key = slugKey(req.params.name);
   const store = loadStore();
@@ -608,9 +681,6 @@ app.get('/api/candidate/:name/summary', (req, res) => {
   });
 });
 
-// Powers the Dashboard's "Interview Readiness" / "Recent Interviews" and the
-// Report's "Progress" trend — derived from the same candidate store used for
-// cross-day RAG linking, no extra persistence needed.
 app.get('/api/candidate/:name/history', (req, res) => {
   const key = slugKey(req.params.name);
   const store = loadStore();
@@ -620,8 +690,8 @@ app.get('/api/candidate/:name/history', (req, res) => {
   const scored = candidate.sessions.filter(s => s.scores && typeof s.scores.hiringProbability === 'number');
   if (!scored.length) return res.json({ hasHistory: false });
 
-  const recent = scored.slice(-8).reverse(); // newest first, for the "Recent Interviews" list
-  const trend = scored.slice(-5).map(s => s.scores.hiringProbability); // oldest -> newest, for the report trend line
+  const recent = scored.slice(-8).reverse();
+  const trend = scored.slice(-5).map(s => s.scores.hiringProbability);
   const readiness = trend[trend.length - 1];
 
   const latestScores = recent[0].scores;
@@ -631,7 +701,6 @@ app.get('/api/candidate/:name/history', (req, res) => {
     { label: 'Problem Solving', score: latestScores.problemSolving }
   ];
 
-  // Weakest concept tag across all sessions, by average competence.
   const tagAgg = new Map();
   candidate.sessions.forEach(s => {
     (s.concepts || []).forEach(c => {
