@@ -418,6 +418,38 @@
   .state-pill.speaking{ border-color:rgba(201,162,75,.4); color:var(--brass); background:var(--brass-dim); }
   .state-pill.speaking .sp-dot{ background:var(--brass); box-shadow:0 0 6px var(--brass); animation:blink-dot 1.4s infinite; }
   @keyframes spin-dot{ 0%{opacity:1;} 50%{opacity:.3;} 100%{opacity:1;} }
+
+  /* ===== AI INTERVIEW MEMORY (dashboard) ===== */
+  .memory-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-top:-12px; }
+  .memory-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
+  .memory-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px dashed var(--line-soft); font-size:13px; flex-wrap:wrap; }
+  .memory-row:last-child{ border-bottom:none; }
+  .memory-row .mr-left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .memory-row .mr-tag{ color:var(--ink); }
+  .memory-row .mr-score{ font-family:'IBM Plex Mono',monospace; color:var(--ink-dim); font-size:12px; }
+  .memory-status{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 10px; border-radius:20px; white-space:nowrap; border:1px solid var(--line); text-transform:uppercase; letter-spacing:.04em; }
+  .memory-status.improved{ color:var(--teal); border-color:rgba(79,209,197,.35); background:var(--teal-dim); }
+  .memory-status.needs_practice{ color:var(--red); border-color:rgba(226,114,91,.35); background:var(--red-dim); }
+  .memory-status.retest_recommended{ color:var(--brass); border-color:rgba(201,162,75,.35); background:var(--brass-dim); }
+  .memory-status.stable{ color:var(--ink-dim); }
+  .memory-row .mr-practice-btn{ padding:6px 12px; font-size:11.5px; }
+
+  /* ===== PRACTICE MODE ===== */
+  .practice-banner .rb-text{ font-size:13.5px; color:var(--ink-dim); }
+  .practice-banner .rb-text b{ color:var(--red); font-weight:600; }
+  .practice-banner-icon{ font-size:24px; }
+
+  /* ===== REPORT: practice drill result ===== */
+  .practice-result-card{
+    display:none; background:var(--bg-panel); border:1px solid rgba(201,162,75,.35); border-radius:var(--radius);
+    padding:20px; text-align:center;
+  }
+  .practice-result-card .pr-title{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-dim); margin-bottom:14px; }
+  .practice-result-card .pr-title b{ color:var(--brass); }
+  .practice-result-row{ display:flex; align-items:baseline; justify-content:center; gap:16px; flex-wrap:wrap; }
+  .practice-result-row .pr-num{ font-family:'Fraunces',serif; font-size:32px; color:var(--ink); }
+  .practice-result-row .pr-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin-top:2px; }
+  .practice-result-row .pr-arrow{ font-size:26px; color:var(--ink-faint); }
 </style>
 </head>
 <body>
@@ -496,6 +528,14 @@
       </div>
     </div>
 
+    <div class="returning-banner practice-banner" id="practiceBanner" style="border-left-color:var(--red);">
+      <div class="practice-banner-icon">🎯</div>
+      <div>
+        <div class="rb-text">Practice Mode: <b id="practiceBannerTag">—</b><span id="practiceBannerBaseline"></span></div>
+        <button class="btn-ghost" id="practiceBannerCancel" style="margin-top:8px;padding:6px 12px;font-size:11.5px;">Cancel practice mode</button>
+      </div>
+    </div>
+
     <div class="dash-grid" id="dashGrid" style="display:none;">
       <div class="readiness-card">
         <div class="rc-title">Interview Readiness</div>
@@ -511,6 +551,11 @@
         <div class="rc-title">Recent Interviews</div>
         <div id="recentList"></div>
       </div>
+    </div>
+
+    <div class="memory-card" id="memoryCard" style="display:none;">
+      <div class="rc-title">🧠 Your AI Interview Memory</div>
+      <div id="memoryConceptsList"></div>
     </div>
 
     <div>
@@ -683,6 +728,17 @@
         <span class="recommend" id="recommendBadge">—</span>
         <span class="crossday-pill" id="dayPill">Day 1</span>
         <span class="crossday-pill" id="linkPill" style="display:none;">🔗 0 cross-day links used</span>
+        <span class="crossday-pill" id="practiceDrillPill" style="display:none;">🎯 Practice Drill</span>
+      </div>
+    </div>
+
+    <div class="practice-result-card" id="practiceResultCard">
+      <div class="pr-title">Practice Result — <b id="practiceResultTag">—</b></div>
+      <div class="practice-result-row">
+        <div><div class="pr-num" id="practiceResultBefore">—</div><div class="pr-lbl">Before</div></div>
+        <div class="pr-arrow">→</div>
+        <div><div class="pr-num" id="practiceResultAfter">—</div><div class="pr-lbl">After</div></div>
+        <span class="crossday-pill" id="practiceResultDelta" style="margin-left:6px;"></span>
       </div>
     </div>
 
@@ -752,10 +808,6 @@
   "use strict";
 
   // ---------- latency instrumentation ----------
-  // Every stage of the voice pipeline logs a tagged, timestamped line via
-  // this helper so the exact bottleneck (STT finalization, network, LLM,
-  // TTS start) is visible in the browser console during a live run —
-  // this directly answers "why did that turn feel slow" without guessing.
   const t0 = performance.now();
   function markLatency(tag, extra){
     const ms = Math.round(performance.now() - t0);
@@ -770,15 +822,6 @@
   function apiBase(){ return (apiBaseInput.value || DEFAULT_API_BASE).replace(/\/+$/,''); }
 
   // ---------- backend warm-up (Render free-tier cold start mitigation) ----------
-  // Render's free tier spins the backend dyno down after inactivity; the
-  // FIRST request after that can take 20-50+ seconds just to boot the
-  // process, which looks identical to "the app is frozen" from the
-  // candidate's side. Firing a harmless /api/health ping the moment the
-  // page loads — well before the candidate finishes filling in the setup
-  // form and clicks Start — gives the dyno time to wake up in the
-  // background so the actual /api/interview/start call lands on an
-  // already-warm server. Re-pinged when they reach the welcome screen too,
-  // in case they sat on the login screen a while.
   function warmUpBackend(){
     const start = performance.now();
     fetch(apiBase() + '/api/health').then(() => {
@@ -815,6 +858,8 @@
   let replayIndex = 0;
   let replayPlaying = false;
   let manualStopRequested = false; // set true only by the "I'm done" button — the one explicit way to finalize an answer
+  let practiceFocus = null; // set when the candidate enters practice mode via a weakness "Practice" button
+  let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
 
   // ---------- screens ----------
   function showScreen(id){
@@ -827,10 +872,6 @@
   }
 
   // ---------- unified pipeline-state indicator (Listening / Processing / AI Speaking) ----------
-  // Single source of truth for the visible state, used everywhere instead of
-  // touching the orb classes directly — keeps the room-header pill and the
-  // orb glow always in sync, and logs each transition with a timestamp so
-  // the console output doubles as a latency trace of the whole turn.
   function setInterviewState(state, label){
     const pill = document.getElementById('statePill');
     const pillLabel = document.getElementById('statePillLabel');
@@ -889,6 +930,7 @@
       showScreen('welcome');
       loadReturningBanner();
       loadDashboardData();
+      loadMemoryData();
       warmUpBackend();
     }
   }
@@ -901,6 +943,7 @@
     showScreen('welcome');
     loadReturningBanner();
     loadDashboardData();
+    loadMemoryData();
     warmUpBackend();
   });
   document.getElementById('nameInput').addEventListener('keydown', (e) => {
@@ -985,7 +1028,7 @@
       if (data.weakest){
         weakCallout.style.display = 'flex';
         document.getElementById('weakTag').textContent = data.weakest.tag + ' (' + data.weakest.score + '%)';
-        document.getElementById('practiceNowBtn').onclick = () => selectTopicForPractice(data.weakest.tag);
+        document.getElementById('practiceNowBtn').onclick = () => selectTopicForPractice(data.weakest.tag, data.weakest.score);
       } else {
         weakCallout.style.display = 'none';
       }
@@ -1005,9 +1048,72 @@
     } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
   }
 
+  // ---------- 🧠 AI Interview Memory (concept trends across all past sessions) ----------
+  const MEMORY_STATUS_LABEL = {
+    improved: '↑ Improved',
+    needs_practice: '→ Needs practice',
+    retest_recommended: '⚠ Re-test recommended',
+    stable: '• Stable'
+  };
+  async function loadMemoryData(){
+    const card = document.getElementById('memoryCard');
+    card.style.display = 'none';
+    if (!userName) return;
+    try {
+      const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/memory');
+      const data = await res.json();
+      if (!data.hasMemory || !data.concepts || !data.concepts.length) return;
+      card.style.display = 'block';
+
+      const list = document.getElementById('memoryConceptsList');
+      list.innerHTML = '';
+      data.concepts.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'memory-row';
+        const statusClass = MEMORY_STATUS_LABEL[c.status] ? c.status : 'stable';
+        const statusLabel = MEMORY_STATUS_LABEL[c.status] || '• Stable';
+        row.innerHTML =
+          '<div class="mr-left">' +
+            '<span class="mr-tag">' + c.tag + '</span>' +
+            '<span class="mr-score">' + c.latestScore + '%' + (typeof c.previousScore === 'number' ? ' (was ' + c.previousScore + '%)' : '') + '</span>' +
+            '<span class="memory-status ' + statusClass + '">' + statusLabel + '</span>' +
+          '</div>';
+        const btn = document.createElement('button');
+        btn.className = 'btn-ghost mr-practice-btn';
+        btn.textContent = 'Practice →';
+        btn.onclick = () => selectTopicForPractice(c.tag, c.latestScore);
+        row.appendChild(btn);
+        list.appendChild(row);
+      });
+    } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
+  }
+
+  // ---------- practice mode ----------
+  function showPracticeBanner(tag, baselineScore){
+    document.getElementById('practiceBannerTag').textContent = tag;
+    document.getElementById('practiceBannerBaseline').textContent =
+      typeof baselineScore === 'number' ? (' — last scored ' + baselineScore + '%') : '';
+    document.getElementById('practiceBanner').classList.add('show');
+  }
+  function hidePracticeBanner(){
+    document.getElementById('practiceBanner').classList.remove('show');
+  }
+  function clearPracticeMode(){
+    practiceFocus = null;
+    practiceBaselineScore = null;
+    hidePracticeBanner();
+  }
+  document.getElementById('practiceBannerCancel').addEventListener('click', clearPracticeMode);
+
   // Selects a subject chip if it matches a preset topic, otherwise drops the
-  // tag into the custom-topic box — used by "Practice Now" / "Practice Weak Areas".
-  function selectTopicForPractice(topic){
+  // tag into the custom-topic box — used by "Practice Now" / "Practice Weak Areas"
+  // / memory-card "Practice →" buttons. Also enters practice mode so the next
+  // interview started is a focused 5-question re-test drill on this concept.
+  function selectTopicForPractice(topic, baselineScore){
+    practiceFocus = topic;
+    practiceBaselineScore = typeof baselineScore === 'number' ? baselineScore : null;
+    showPracticeBanner(topic, practiceBaselineScore);
+
     let matched = false;
     document.querySelectorAll('.subject-chip').forEach(chip => {
       chip.classList.remove('selected');
@@ -1042,6 +1148,9 @@
         box.classList.remove('show');
         selectedTopic = chip.dataset.topic;
       }
+      // Manually picking a subject means the candidate wants a normal
+      // interview, not the focused drill — leave practice mode.
+      if (practiceFocus) clearPracticeMode();
     });
   });
   document.getElementById('topicInput').addEventListener('input', (e) => { selectedTopic = e.target.value.trim(); });
@@ -1379,13 +1488,6 @@
   }
 
   // ---------- TTS ----------
-  // Web Speech API's speechSynthesis is a local/on-device engine (no network
-  // round-trip, unlike a server TTS provider), so there is no "streaming"
-  // endpoint to switch on here — the speak() call below already starts
-  // audio as fast as the browser's engine allows, and — critically — it is
-  // fired in parallel with the mic re-opening in askAndListen() rather than
-  // being awaited first, so the candidate can start answering immediately
-  // without waiting for the question to finish being read aloud.
   let currentUtterResolve = null;
   function speak(text){
     return new Promise((resolve) => {
@@ -1409,19 +1511,10 @@
   document.getElementById('skipBtn').addEventListener('click', skipVoiceover);
 
   // ---------- manual "done answering" override ----------
-  // Requirement: must IMMEDIATELY stop recognition and submit the finalized
-  // transcript with no extra wait. recognition.stop() below (a) flips the UI
-  // to "Processing" instantly, in this click handler, before the recognizer
-  // even finishes stopping, and (b) triggers the recognizer's own 'onend'
-  // handler in listenWithBargeIn, which — because manualStopRequested is now
-  // true — resolves immediately with whatever transcript (final segments,
-  // plus any trailing not-yet-finalized interim words — see lastInterimText
-  // below) had been captured. No additional debounce or timeout sits between
-  // the click and that resolve.
   document.getElementById('doneAnsweringBtn').addEventListener('click', () => {
     markLatency('I\'m-done clicked');
     manualStopRequested = true;
-    setInterviewState('processing', 'Processing…'); // instant feedback, don't wait for onend to confirm
+    setInterviewState('processing', 'Processing…');
     if (recognition) {
       try { recognition.stop(); } catch (e) {}
     }
@@ -1576,15 +1669,6 @@
   }
 
   // ---------- STT with barge-in + fast silence-based auto-submit ----------
-  //
-  // SILENCE_GRACE_MS was 3000ms — a real 3-second dead-air wait after the
-  // candidate stopped talking before the next question would even be
-  // requested. That's the dominant chunk of the "takes too long" complaint:
-  // everything downstream (LLM call, TTS start) was already fast; the app
-  // was just deliberately sitting idle for 3s first. Dropped to 1000ms
-  // (within the requested 800-1200ms band) — long enough not to clip a
-  // normal short thinking-breath, short enough that it stops feeling like a
-  // stall. The "I'm done" button remains the zero-wait override on top of this.
   function listenWithBargeIn(isAiSpeaking, onBargeIn){
    return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
@@ -1603,10 +1687,10 @@
  
       function armSilenceTimer(){
         if (silenceTimer) clearTimeout(silenceTimer);
-        if (!hasSpokenAtLeastOnce) return; // don't fire before candidate has said anything
+        if (!hasSpokenAtLeastOnce) return;
         silenceTimer = setTimeout(() => {
           markLatency('silence timer fired — stopping recognition now', { ms: SILENCE_GRACE_MS });
-          manualStopRequested = true; // reuse the same "finalize immediately" path as the "I'm done" button
+          manualStopRequested = true;
           if (recognition) { try { recognition.stop(); } catch(e) {} }
         }, SILENCE_GRACE_MS);
       }
@@ -1633,7 +1717,7 @@
           if (combined){
             hasSpokenAtLeastOnce = true;
             if (!firstSpeechLoggedAt){ firstSpeechLoggedAt = Date.now(); markLatency('first speech detected'); }
-            armSilenceTimer(); // every new word pushes the silence deadline forward
+            armSilenceTimer();
           }
           if (!bargedIn && isAiSpeaking() && combined.replace(/\s/g, '').length >= 3){
             bargedIn = true;
@@ -1673,8 +1757,6 @@
             resolve(finalTranscript.trim());
             return;
           }
-          // Engine ended on its own before our silence timer fired (rare) —
-          // just restart listening, nothing was lost.
           startOne();
         };
         recognition.start();
@@ -1747,12 +1829,6 @@
     poseSamples = [];
     markLatency('askAndListen start Q' + qNum);
 
-    // speak() is fired WITHOUT awaiting it here — listenWithBargeIn starts
-    // listening immediately in parallel below, so the candidate's mic is
-    // live and barge-in-capable from the instant the question begins
-    // playing, not after it finishes. This is what requirement 9 ("avoid
-    // unnecessary sequential calls, parallelize where safe") means for TTS
-    // specifically: nothing here blocks on the voiceover finishing.
     let aiSpeaking = true;
     speak(questionText).then(() => {
       aiSpeaking = false;
@@ -1860,7 +1936,7 @@
     const customBox = document.getElementById('customTopicBox');
     if (customBox.classList.contains('show')) selectedTopic = document.getElementById('topicInput').value.trim();
 
-    if (!selectedTopic){
+    if (!practiceFocus && !selectedTopic){
       welcomeWarning.style.display = 'block';
       welcomeWarning.textContent = 'Pick a subject or type a custom topic first.';
       return;
@@ -1870,13 +1946,18 @@
     const btn = document.getElementById('startBtn');
     btn.disabled = true; btn.textContent = 'Connecting…';
     setConn('starting session', false);
-    markLatency('start button clicked');
+    markLatency('start button clicked', { practiceMode: !!practiceFocus });
 
     try {
       const startFetchBegin = performance.now();
       const res = await fetch(apiBase() + '/api/interview/start', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ topic: selectedTopic, persona, candidateName: userName, experience, interviewType, durationMinutes, resumeContext: document.getElementById('resumeInput').value.trim() })
+        body: JSON.stringify({
+          topic: selectedTopic, persona, candidateName: userName, experience, interviewType, durationMinutes,
+          resumeContext: document.getElementById('resumeInput').value.trim(),
+          practiceFocus: practiceFocus || undefined,
+          practiceBaselineScore: typeof practiceBaselineScore === 'number' ? practiceBaselineScore : undefined
+        })
       });
       const data = await res.json();
       markLatency('start response received', { roundTripMs: Math.round(performance.now() - startFetchBegin), serverTimingMs: data.timingMs });
@@ -1890,13 +1971,17 @@
       document.getElementById('muteBtn').classList.remove('muted');
       document.getElementById('sessionLabel').style.display = 'inline';
       document.getElementById('sessionLabel').textContent = sessionId.slice(0,8);
-      document.getElementById('rhTopic').textContent = selectedTopic;
-      document.getElementById('rhType').textContent = interviewType;
+      document.getElementById('rhTopic').textContent = data.practiceMode ? ('Practice: ' + (data.practiceFocus || practiceFocus)) : selectedTopic;
+      document.getElementById('rhType').textContent = data.practiceMode ? 'Practice Drill' : interviewType;
       document.getElementById('diffToast').classList.remove('show');
       startRoomTimer();
       setConn('live', true);
       showScreen('room');
       if (cameraEnabled) startPostureTracking();
+      // Practice mode is one-shot per interview — clear it now that the
+      // session has actually started, so the next interview defaults back
+      // to a normal one unless the candidate picks "Practice" again.
+      clearPracticeMode();
       askAndListen(data.question, data.difficulty, data.questionNumber, 0, data.targetMinutes, data.crossDayLink);
     } catch (err) {
       setConn('error', false);
@@ -1909,8 +1994,10 @@
 
   // ---------- report progress trend ----------
   let lastReportWeakTag = '';
+  let lastReportWeakBaseline = null;
   async function loadProgressTrend(reportData){
     lastReportWeakTag = (reportData.revisionPlan && reportData.revisionPlan[0]) ? reportData.revisionPlan[0].topic : '';
+    lastReportWeakBaseline = null;
     const section = document.getElementById('progressSection');
     const trendEl = document.getElementById('progressTrend');
     const practiceBtn = document.getElementById('practiceWeakBtn');
@@ -1935,13 +2022,15 @@
         trendEl.appendChild(chip);
       });
       if (!lastReportWeakTag && data.weakest) lastReportWeakTag = data.weakest.tag;
+      if (data.weakest && data.weakest.tag === lastReportWeakTag) lastReportWeakBaseline = data.weakest.score;
       if (lastReportWeakTag){
         practiceBtn.style.display = 'inline-block';
         practiceBtn.onclick = () => {
           showScreen('welcome');
           loadReturningBanner();
           loadDashboardData();
-          selectTopicForPractice(lastReportWeakTag);
+          loadMemoryData();
+          selectTopicForPractice(lastReportWeakTag, lastReportWeakBaseline);
         };
       }
     } catch (e) { /* not fatal — report already shown without the trend */ }
@@ -2015,13 +2104,44 @@
     const data = await res.json();
     if (!res.ok) { setFeedback('Report error: ' + data.error); return; }
 
-    document.getElementById('reportGreeting').textContent = userName ? userName.split(' ')[0] + '\u2019s interview report' : 'Interview report';
+    document.getElementById('reportGreeting').textContent = data.practiceMode
+      ? (userName ? userName.split(' ')[0] + '\u2019s practice drill report' : 'Practice drill report')
+      : (userName ? userName.split(' ')[0] + '\u2019s interview report' : 'Interview report');
     document.getElementById('scoreHiring').textContent = data.scores.hiringProbability + '%';
     document.getElementById('scoreConfidence').textContent = data.scores.confidence + '%';
     document.getElementById('scoreComm').textContent = data.scores.communication + '%';
     document.getElementById('scoreProblem').textContent = data.scores.problemSolving + '%';
+
+    // Practice drills don't get a hiring recommendation / day-count badge —
+    // those are meaningless for a 5-question focused re-test — swap in a
+    // "Practice Drill" pill and the dedicated before→after card instead.
+    document.getElementById('recommendBadge').style.display = data.practiceMode ? 'none' : 'inline-block';
     document.getElementById('recommendBadge').textContent = data.recommendation;
+    document.getElementById('dayPill').style.display = data.practiceMode ? 'none' : 'inline-flex';
     document.getElementById('dayPill').textContent = 'Day ' + (data.dayNumber || 1);
+    document.getElementById('practiceDrillPill').style.display = data.practiceMode ? 'inline-flex' : 'none';
+
+    const practiceCard = document.getElementById('practiceResultCard');
+    if (data.practiceMode && data.practiceResult){
+      practiceCard.style.display = 'block';
+      document.getElementById('practiceResultTag').textContent = data.practiceResult.tag || '';
+      document.getElementById('practiceResultBefore').textContent =
+        typeof data.practiceResult.before === 'number' ? (data.practiceResult.before + '%') : '—';
+      document.getElementById('practiceResultAfter').textContent = data.practiceResult.after + '%';
+      const deltaEl = document.getElementById('practiceResultDelta');
+      const delta = data.practiceResult.improvement;
+      if (typeof delta === 'number'){
+        deltaEl.style.display = 'inline-flex';
+        deltaEl.textContent = (delta >= 0 ? '+' : '') + delta + '%';
+        deltaEl.style.color = delta >= 0 ? 'var(--teal)' : 'var(--red)';
+        deltaEl.style.borderColor = delta >= 0 ? 'rgba(79,209,197,.4)' : 'rgba(226,114,91,.4)';
+      } else {
+        deltaEl.style.display = 'none';
+      }
+    } else {
+      practiceCard.style.display = 'none';
+    }
+
     const linkPill = document.getElementById('linkPill');
     if (data.crossDayLinksUsed){
       linkPill.style.display = 'inline-flex';
@@ -2082,6 +2202,7 @@
     showScreen('welcome');
     loadReturningBanner();
     loadDashboardData();
+    loadMemoryData();
   });
 
 })();
