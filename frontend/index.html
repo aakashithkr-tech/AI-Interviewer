@@ -336,7 +336,7 @@
   "use strict";
 
   // ---------- config ----------
-  const DEFAULT_API_BASE = window.location.origin.startsWith('http') && window.location.port
+  const DEFAULT_API_BASE = window.location.origin.startsWith('http')
     ? window.location.origin : "http://localhost:3000";
   const apiBaseInput = document.getElementById('apiBaseInput');
   apiBaseInput.value = window.localStorage ? (localStorage.getItem('interview_api_base') || DEFAULT_API_BASE) : DEFAULT_API_BASE;
