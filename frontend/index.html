@@ -1254,7 +1254,7 @@
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
       recognition = new SpeechRecognition();
-      recognition.lang = 'en-US';
+      recognition.lang = 'en-IN'; // Indian English — handles Indian accents & light Hinglish far better than en-US
       recognition.interimResults = true;
       recognition.continuous = true; // keep listening through natural pauses instead of ending after the first one
       recognition.maxAlternatives = 1;
@@ -1297,7 +1297,7 @@
 
       function startOne(){
         recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
+        recognition.lang = 'en-IN'; // Indian English — handles Indian accents & light Hinglish far better than en-US
         recognition.interimResults = true;
         recognition.continuous = true; // keep listening through natural pauses instead of ending after the first one — this was cutting candidates off mid-answer
         recognition.maxAlternatives = 1;
@@ -1472,7 +1472,7 @@
     }
     if (!interviewActive) return;
     if (!res.ok){
-      setFeedback('Error: ' + (data.error || 'unknown') + ' — tap the mic button to retry.');
+      setFeedback('Error: ' + (data.error || 'unknown') + (data.detail ? ' (' + data.detail + ')' : '') + ' — tap the mic button to retry.');
       setOrb('error','error — tap mic to retry');
       showMicRetry();
       return;
