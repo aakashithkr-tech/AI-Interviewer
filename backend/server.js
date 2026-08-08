@@ -339,8 +339,9 @@ Always reply with STRICT JSON only, no markdown, matching this schema exactly:
   "interviewerNote": "<short internal note, 5-12 words>",
   "nextDifficulty": <1-5 integer>,
   "nextQuestion": "<next question, or empty string if done>",
-  "topicTag": "${practiceFocus}",
+ "topicTag": "${practiceFocus}",
   "crossDayLink": false,
+  "nextAction": "<one short phrase, 5-10 words, on WHY you're asking the next question>",
   "done": <true|false>
 }`;
   }
@@ -380,8 +381,9 @@ Always reply with STRICT JSON only, no markdown, matching this schema exactly:
   "interviewerNote": "<short internal scratchpad note, 5-12 words>",
   "nextDifficulty": <1-5 integer>,
   "nextQuestion": "<the next interview question, in the persona's tone, or empty string if done>",
-  "topicTag": "<short tag for the concept just tested, e.g. 'stacks', 'queues', 'recursion'>",
+ "topicTag": "<short tag for the concept just tested, e.g. 'stacks', 'queues', 'recursion'>",
   "crossDayLink": <true|false, whether this question deliberately links to a past-day concept>,
+  "nextAction": "<one short phrase, 5-10 words, on WHY you're asking the next question / what it's testing — e.g. 'Testing if they can apply this under load'. Shown only in the final report, never live.>",
   "done": <true|false>
 }`;
 }
@@ -459,7 +461,50 @@ app.get('/api/candidate/:name/resume', (req, res) => {
   const text = store[key] && store[key].lastResumeText;
   res.json({ hasResume: !!text, text: text || '' });
 });
+// ---- Skill Gap: compares resume vs a job description, returns a match table
+// + top risk areas. One-shot LLM call, no session/state involved.
 
+app.post('/api/resume/skill-gap', async (req, res) => {
+  try {
+    const { resumeContext = '', jdContext = '' } = req.body || {};
+    const resume = String(resumeContext || '').trim().slice(0, 6000);
+    const jd = String(jdContext || '').trim().slice(0, 4000);
+    if (!resume || !jd) return res.status(400).json({ error: 'Both resume and job description text are required' });
+
+    const prompt = `Compare this candidate's resume against the job description below and produce a skill gap analysis.
+
+Resume:
+"""
+${resume}
+"""
+
+Job Description:
+"""
+${jd}
+"""
+
+List the key skills/technologies the JD requires. For each, mark whether the resume shows it: "✓" (clearly shown), "~" (partial/implied), or "—" (missing). Then name the top 2-3 biggest interview risk areas.
+
+Reply with STRICT JSON only:
+{
+  "skills": [ { "skill": "<name>", "resume": "✓"|"~"|"—", "note": "<optional short note>" } ],
+  "riskAreas": ["<skill>", "<skill>"],
+  "summary": "<one sentence, e.g. 'Your biggest interview risk is AWS and System Design.'>"
+}`;
+
+    const raw = await callLLM(
+      'You are a technical recruiter analyzing skill gaps. Reply with strict JSON only.',
+      prompt,
+      { maxOutputTokens: 600, attemptTimeoutMs: 6000, budgetMs: 5500 }
+    );
+    const parsed = safeParseJSON(raw);
+    if (!parsed) return res.status(502).json({ error: 'Model returned unparsable response' });
+    res.json(parsed);
+  } catch (err) {
+    console.error('[skill-gap]', err.message);
+    res.status(500).json({ error: 'Failed to analyze skill gap', detail: err.message });
+  }
+});
 app.post('/api/interview/start', async (req, res) => {
   const t0 = Date.now();
   try {
@@ -629,8 +674,9 @@ Evaluate this answer and produce the next step, per the schema. Keep evidenceFee
       confidence: blendedConfidence,
       vocalConfidence,
       visualConfidence: hasVisual ? clamp(visualConfidence, 0, 100, null) : null,
-      evidenceFeedback: parsed.evidenceFeedback || '',
+   evidenceFeedback: parsed.evidenceFeedback || '',
       interviewerNote: parsed.interviewerNote || '',
+      nextAction: parsed.nextAction || '',
       difficulty: session.difficulty,
       topicTag: session.practiceMode ? session.practiceFocus : (parsed.topicTag || 'general'),
       crossDayLink: !!parsed.crossDayLink,
@@ -695,9 +741,10 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
     const weakTopics = turns.filter(t => t.verdict !== 'correct').map(t => t.topicTag);
     const uniqueWeak = [...new Set(weakTopics)];
 
-    const timeline = turns.map(t => ({
+ const timeline = turns.map(t => ({
       qNum: t.qNum, question: t.question, answer: t.answer, verdict: t.verdict,
-      topicTag: t.topicTag, difficulty: t.difficulty, evidenceFeedback: t.evidenceFeedback, crossDayLink: t.crossDayLink
+      topicTag: t.topicTag, difficulty: t.difficulty, evidenceFeedback: t.evidenceFeedback, crossDayLink: t.crossDayLink,
+      nextAction: t.nextAction
     }));
 
     const byTag = new Map();

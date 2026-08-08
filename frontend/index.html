@@ -629,7 +629,20 @@
         <button type="button" class="btn-ghost" id="pasteClipboardBtn" style="padding:6px 12px; font-size:11.5px;">📋 Paste from clipboard</button>
           <button type="button" class="btn-ghost" id="uploadResumeBtn" style="padding:6px 12px; font-size:11.5px;">📎 Upload PDF / TXT</button>
           <input type="file" id="resumeFileInput" accept=".pdf,.txt,.md" style="display:none;" />
-          <span id="pasteStatus" style="font-size:11px; color:var(--ink-faint);">If Ctrl+V doesn't work in this browser, use this button instead.</span>
+        <span id="pasteStatus" style="font-size:11px; color:var(--ink-faint);">If Ctrl+V doesn't work in this browser, use this button instead.</span>
+        </div>
+        <div style="margin-top:14px;">
+          <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim);">Job description (optional, for skill-gap analysis)</label>
+          <textarea id="jdInput" class="mono" rows="4" placeholder="Paste the job description here to see a skill-gap table before you start." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
+          <button type="button" class="btn-ghost" id="skillGapBtn" style="padding:6px 12px; font-size:11.5px; margin-top:8px;">🎯 Analyze skill gap</button>
+          <span id="skillGapStatus" style="font-size:11px; color:var(--ink-faint); margin-left:8px;"></span>
+        </div>
+        <div id="skillGapResult" style="display:none; margin-top:14px; max-width:560px;">
+          <div class="plan-card" style="max-width:100%;">
+            <div class="pc-title">Skill Gap</div>
+            <div id="skillGapTable"></div>
+            <div id="skillGapSummary" style="margin-top:10px; font-size:12.5px; color:var(--brass); font-style:italic;"></div>
+          </div>
         </div>
       </details>
     </div>
@@ -1195,6 +1208,41 @@
         pasteStatus.textContent = 'Could not read that file (' + e.message + ') — try pasting the text instead.';
       } finally {
         resumeFileInput.value = '';
+      }
+    });
+  }
+
+  // ---------- skill gap analysis (resume vs JD) ----------
+  const skillGapBtn = document.getElementById('skillGapBtn');
+  const skillGapStatus = document.getElementById('skillGapStatus');
+  const skillGapResult = document.getElementById('skillGapResult');
+  const skillGapTable = document.getElementById('skillGapTable');
+  const skillGapSummary = document.getElementById('skillGapSummary');
+  if (skillGapBtn) {
+    skillGapBtn.addEventListener('click', async () => {
+      const resumeText = document.getElementById('resumeInput').value.trim();
+      const jdText = document.getElementById('jdInput').value.trim();
+      if (!resumeText || !jdText) {
+        skillGapStatus.textContent = 'Paste both your resume and the job description first.';
+        return;
+      }
+      skillGapStatus.textContent = 'Analyzing…';
+      skillGapResult.style.display = 'none';
+      try {
+        const res = await fetch(apiBase() + '/api/resume/skill-gap', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resumeContext: resumeText, jdContext: jdText })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'failed to analyze');
+        skillGapTable.innerHTML = (data.skills || []).map(s =>
+          '<div class="pc-row"><span>' + s.skill + (s.note ? ' <span style="color:var(--ink-faint);">(' + s.note + ')</span>' : '') + '</span><b>' + s.resume + '</b></div>'
+        ).join('');
+        skillGapSummary.textContent = data.summary || '';
+        skillGapResult.style.display = 'block';
+        skillGapStatus.textContent = '';
+      } catch (e) {
+        skillGapStatus.textContent = 'Could not analyze (' + e.message + ').';
       }
     });
   }
@@ -2183,10 +2231,15 @@
 
     const tl = document.getElementById('reportTimeline');
     tl.innerHTML = '';
-    data.timeline.forEach(t => {
+    data.timeline.forEach((t, idx) => {
+      const prev = idx > 0 ? data.timeline[idx - 1] : null;
+      const badges = [];
+      if (prev && t.difficulty > prev.difficulty) badges.push('<span class="link-tag" style="color:var(--brass);border-color:rgba(201,162,75,.35);background:var(--brass-dim);">🔥 harder</span>');
+      if (t.verdict === 'incorrect') badges.push('<span class="link-tag" style="color:var(--red);border-color:rgba(226,114,91,.35);background:var(--red-dim);">⚠ missed</span>');
+      if (t.crossDayLink) badges.push('<span class="link-tag">🔗 cross-day</span>');
       const el = document.createElement('div');
       el.className = 'report-tick';
-      el.innerHTML = '<div class="q">Q' + t.qNum + ' · ' + t.topicTag + ' · L' + t.difficulty + ' · ' + t.verdict + (t.crossDayLink ? ' <span class="link-tag">cross-day</span>' : '') + '</div><div class="fb">' + (t.evidenceFeedback||'') + '</div>';
+      el.innerHTML = '<div class="q">Q' + t.qNum + ' · ' + t.topicTag + ' · L' + t.difficulty + ' · ' + t.verdict + ' ' + badges.join(' ') + '</div><div class="fb">' + (t.evidenceFeedback||'') + '</div>' + (t.nextAction ? '<div class="fb" style="color:var(--brass); margin-top:4px;">→ ' + t.nextAction + '</div>' : '');
       tl.appendChild(el);
     });
 
