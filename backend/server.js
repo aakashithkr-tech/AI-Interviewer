@@ -533,10 +533,101 @@ function formatMemoryContext(memory) {
   return `Candidate history (Day ${memory.dayCount + 1} for this candidate — this is a RETURNING candidate). Relevant concepts they covered on previous days, retrieved for cross-day linking:\n${lines}`;
 }
 
+// =====================================================================
+// COHORT-GROUNDED INTERVIEW MODE (additive)
+//
+// Lets the SAME live interview room (voice, camera, timeline, evidence
+// panel — untouched) run a genuinely cohort-grounded interview instead of
+// a generic topic-based one, when the candidate picks a cohort profile in
+// Studio. Fully backward compatible: if no cohortCandidateKey is passed,
+// /api/interview/start and /api/interview/answer behave EXACTLY as before
+// this block was added — nothing below is on that code path.
+//
+// Reuses loadCurriculum() / curriculumDayInfo() / buildCandidateContext()
+// defined later in this file (function declarations are hoisted, so this
+// is safe to call from here at request time).
+// =====================================================================
+
+const COHORT_CANDIDATES_FILE = path.join(DATA_DIR, 'cohort-candidates.json');
+let _cohortCandidatesCache = null;
+function loadCohortCandidates() {
+  if (_cohortCandidatesCache) return _cohortCandidatesCache;
+  try {
+    _cohortCandidatesCache = JSON.parse(fs.readFileSync(COHORT_CANDIDATES_FILE, 'utf8'));
+  } catch (e) {
+    console.error('[cohort-candidates] failed to load cohort-candidates.json:', e.message);
+    _cohortCandidatesCache = {};
+  }
+  return _cohortCandidatesCache;
+}
+
+const COHORT_MIN_QUESTIONS = 8;
+const COHORT_MIN_DAYS = 4;
+
+function buildCohortSystemPrompt(candidateCtx, persona, experience) {
+  return `You are an adaptive AI technical interviewer conducting a live spoken interview for the 31-day AI Cohort. This interview is GROUNDED in the candidate's actual learning journey — not generic textbook trivia.
+
+Persona / tone: ${PERSONAS[persona] || PERSONAS.friendly}
+Candidate experience level: ${experience || 'Intermediate'}.
+
+${candidateCtx.text}
+
+RULES:
+1. Every question must trace back to a specific day/topic from the curriculum record above. Prioritize: (a) days with multiple attempts — probe deeper, since repeated attempts signal a shaky concept, (b) skipped days — check whether the candidate picked up the idea elsewhere, (c) days passed on the first try — verify it's real understanding and not luck.
+2. Your questions MUST be grounded in at least ${COHORT_MIN_DAYS} DIFFERENT curriculum days across the interview — do not stay on one day/topic the whole time.
+3. Ask a minimum of ${COHORT_MIN_QUESTIONS} questions total (natural follow-ups count) before ending.
+4. Adapt difficulty: if the answer is strong, ask a harder follow-up on the SAME thread. If weak, step back to a simpler question on the same concept before moving to a different day.
+5. Give ONE short evidence-based feedback sentence per turn — paraphrase a specific piece of what the candidate said.
+6. Write a short INTERNAL interviewer's note (5-12 words) — never shown to the candidate.
+7. Only end (done: true) once you've covered at least ${COHORT_MIN_DAYS} distinct days AND asked at least ${COHORT_MIN_QUESTIONS} questions, and you have enough signal for a fair evaluation.
+
+Do NOT attempt full scoring or a hiring recommendation here — that is a separate step run only after the interview ends. Keep this response minimal and fast.
+
+Always reply with STRICT JSON only, no markdown, matching this schema exactly:
+{
+  "verdict": "correct" | "partial" | "incorrect",
+  "competence": <0-100 integer>,
+  "confidence": <0-100 integer>,
+  "evidenceFeedback": "<ONE short sentence>",
+  "interviewerNote": "<short internal note, 5-12 words>",
+  "nextDifficulty": <1-5 integer>,
+  "nextQuestion": "<the next question, or empty string if done>",
+  "topicTag": "<short tag for the concept just tested>",
+  "dayCovered": <the curriculum day number this question is grounded in, integer>,
+  "crossDayLink": <true|false>,
+  "nextAction": "<one short phrase, 5-10 words, on WHY you're asking this>",
+  "done": <true|false>
+}`;
+}
+
+function buildCohortFirstQuestionPrompt(candidateCtx, persona, experience) {
+  return `Begin the interview now. Greet the candidate briefly by name, then ask your first question, grounded in one specific day from the curriculum record above (prefer a day with multiple attempts or a skipped day if one exists). Start at a medium-easy difficulty (level 2 of 5). Reply with STRICT JSON only:
+{
+  "nextQuestion": "<the opening question, in tone: ${PERSONAS[persona] || PERSONAS.friendly}>",
+  "nextDifficulty": 2,
+  "topicTag": "<short tag>",
+  "dayCovered": <curriculum day number, integer>,
+  "crossDayLink": false
+}`;
+}
+
+
 // ---------- Routes ----------
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, models: MODELS, keysConfigured: API_KEYS.length, groqFallback: !!GROQ_API_KEY });
+});
+
+// ---- Cohort candidate profiles for the Studio's optional cohort-grounded
+// interview mode. Additive/read-only — does not affect the generic flow.
+app.get('/api/cohort-candidates', (req, res) => {
+  const all = loadCohortCandidates();
+  res.json(Object.entries(all).map(([key, c]) => ({
+    key,
+    name: (c.member || {}).name || key,
+    jobRole: (c.member || {}).jobRole || '',
+    missionsCompleted: (c.signals || {}).missionsCompleted ?? (c.missions || []).length
+  })));
 });
 
 // ---- Resume/JD file upload: extracts plain text so the frontend can drop it
@@ -631,9 +722,84 @@ app.post('/api/interview/start', async (req, res) => {
     const {
       topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '',
       experience = 'Intermediate', interviewType = 'Technical', durationMinutes, resumeContext = '',
-      practiceFocus = '', practiceBaselineScore
+      practiceFocus = '', practiceBaselineScore, cohortCandidateKey = ''
     } = req.body || {};
     const sessionId = uuidv4();
+
+    // ---- Cohort-grounded branch (additive): only runs when the Studio's
+    // cohort dropdown was used. Everything below this block is the
+    // original, unmodified generic-topic flow. ----
+    if (cohortCandidateKey) {
+      const allCohort = loadCohortCandidates();
+      const cohortCandidate = allCohort[cohortCandidateKey];
+      if (!cohortCandidate) return res.status(400).json({ error: 'Unknown cohortCandidateKey' });
+
+      const candidateCtx = buildCandidateContext(cohortCandidate);
+      const systemPrompt = buildCohortSystemPrompt(candidateCtx, persona, experience);
+
+      const tLlmStart = Date.now();
+      const raw = await callLLM(
+        systemPrompt,
+        buildCohortFirstQuestionPrompt(candidateCtx, persona, experience),
+        { maxOutputTokens: 250, attemptTimeoutMs: 5000, budgetMs: 4500 }
+      );
+      const llmMs = Date.now() - tLlmStart;
+      const memberName = (cohortCandidate.member || {}).name || 'the candidate';
+      const parsed = safeParseJSON(raw) || {
+        nextQuestion: `Welcome, ${memberName}. Let's start with one of the topics from your cohort — walk me through it in your own words.`,
+        nextDifficulty: 2,
+        topicTag: 'cohort-intro',
+        dayCovered: candidateCtx.availableDays[0] || null
+      };
+
+      const session = {
+        id: sessionId,
+        candidateKey: cohortCandidateKey,
+        candidateName: memberName,
+        topic: `Cohort interview — ${memberName}`,
+        persona, experience,
+        interviewType: 'Technical',
+        targetMinutes: TARGET_MINUTES,
+        resumeContext: '',
+        difficulty: parsed.nextDifficulty || 2,
+        turns: [],
+        createdAt: Date.now(),
+        startedAt: Date.now(),
+        lastActive: Date.now(),
+        done: false,
+        memory: { items: [], dayCount: 0 },
+        practiceMode: false,
+        practiceFocus: null,
+        practiceBaseline: null,
+        cohortGrounded: true,
+        candidateCtx,
+        coveredDays: new Set(parsed.dayCovered ? [parsed.dayCovered] : []),
+        _pendingQuestion: parsed.nextQuestion
+      };
+      sessions.set(sessionId, session);
+
+      const totalMs = Date.now() - t0;
+      console.log(`[latency] /start (cohort) memMs=0 llmMs=${llmMs} totalMs=${totalMs} candidate=${cohortCandidateKey}`);
+
+      return res.json({
+        sessionId,
+        question: parsed.nextQuestion,
+        difficulty: session.difficulty,
+        questionNumber: 1,
+        targetMinutes: TARGET_MINUTES,
+        crossDayLink: false,
+        dayNumber: 1,
+        linkedConcepts: [],
+        practiceMode: false,
+        practiceFocus: null,
+        cohortGrounded: true,
+        cohortCandidateName: memberName,
+        dayCovered: parsed.dayCovered || null,
+        done: false,
+        timingMs: { memMs: 0, llmMs, totalMs }
+      });
+    }
+
     const candidateKey = slugKey(candidateName);
     const isPractice = !!(practiceFocus && String(practiceFocus).trim());
     const cleanPracticeFocus = String(practiceFocus || '').trim().slice(0, 80);
@@ -748,14 +914,36 @@ app.post('/api/interview/answer', async (req, res) => {
 
     const maxQ = session.practiceMode ? PRACTICE_MAX_QUESTIONS : MAX_QUESTIONS;
     const minQBeforeEnd = session.practiceMode ? PRACTICE_MIN_QUESTIONS : MIN_QUESTIONS_BEFORE_TIME_END;
-    const overTime = elapsedMin >= targetMinutes && questionNumber > minQBeforeEnd;
-    const hitAbsoluteCap = questionNumber >= maxQ;
+    let overTime = elapsedMin >= targetMinutes && questionNumber > minQBeforeEnd;
+    let hitAbsoluteCap = questionNumber >= maxQ;
 
     const transcript = buildCompactTranscript(session.turns);
     const memoryContext = formatMemoryContext(session.memory);
     const hasVisualForPrompt = typeof visualConfidence === 'number' && !Number.isNaN(visualConfidence);
 
-    const userPrompt = `Topic: ${session.topic}
+    let systemPrompt, userPrompt;
+
+    if (session.cohortGrounded) {
+      // ---- Cohort-grounded branch (additive) ----
+      const daysCoveredCount = session.coveredDays.size;
+      const minimumMet = questionNumber >= COHORT_MIN_QUESTIONS && daysCoveredCount >= COHORT_MIN_DAYS;
+      // safety cap so a stuck LLM can't run forever — generous, rarely hit
+      overTime = false;
+      hitAbsoluteCap = questionNumber >= Math.max(maxQ, COHORT_MIN_QUESTIONS + 6);
+
+      systemPrompt = buildCohortSystemPrompt(session.candidateCtx, session.persona, session.experience);
+      userPrompt = `Transcript so far:\n${transcript || '(none yet)'}\n\n` +
+        `Current question asked: ${session._pendingQuestion}\n` +
+        `Candidate's spoken answer (transcribed): "${answer}"\n` +
+        `${hasVisualForPrompt ? `On-device webcam posture/eye-contact score for this answer: ${Math.round(visualConfidence)}/100. Weigh this alongside vocal cues for CONFIDENCE.` : ''}\n\n` +
+        `Questions asked so far: ${questionNumber}. Distinct curriculum days covered so far: ${daysCoveredCount} (${[...session.coveredDays].join(', ') || 'none yet'}).\n` +
+        (minimumMet
+          ? 'The minimum requirement (>=8 questions AND >=4 distinct days) has been met — you may end now if you have enough signal, or continue if there is clear value in one more question.'
+          : 'The minimum requirement (>=8 questions AND >=4 distinct days) has NOT been met yet — do not end the interview yet, ask another grounded question from a curriculum day not yet covered where possible.') +
+        `\n\nEvaluate this answer and produce the next step, per the schema. Keep evidenceFeedback to ONE short sentence.${hitAbsoluteCap ? ' Safety cap reached — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
+    } else {
+      systemPrompt = buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience, session.resumeContext, session.practiceMode, session.practiceFocus);
+      userPrompt = `Topic: ${session.topic}
 Question number: ${questionNumber}${session.practiceMode ? ` of ${PRACTICE_MAX_QUESTIONS} (focused practice drill)` : ''}
 Elapsed time: ${elapsedMin.toFixed(1)} minutes of a ~${targetMinutes}-minute target
 Current difficulty: ${session.difficulty}
@@ -768,16 +956,30 @@ Candidate's spoken answer (transcribed): "${answer}"
 ${hasVisualForPrompt ? `On-device webcam posture/eye-contact score for this answer: ${Math.round(visualConfidence)}/100 (derived from shoulder level, head position, and gaze steadiness — a rough physical-presence signal, separate from vocal tone). Weigh this alongside vocal cues for your CONFIDENCE judgment, and if it clearly diverges from what the words/tone suggest (e.g. strong words but poor posture score, or shaky words but steady posture), you may briefly note that mismatch in evidenceFeedback.` : ''}
 
 Evaluate this answer and produce the next step, per the schema. Keep evidenceFeedback to ONE short sentence — this is a live low-latency turn, not the final report.${overTime || hitAbsoluteCap ? ' Time is up (or the safety question cap was hit) — this is the FINAL question, set done: true and nextQuestion to "".' : ''}`;
+    }
 
     const tLlmStart = Date.now();
     const raw = await callLLM(
-      buildSystemPrompt(session.persona, session.topic, memoryContext, targetMinutes, session.interviewType, session.experience, session.resumeContext, session.practiceMode, session.practiceFocus),
+      systemPrompt,
       userPrompt,
       { maxOutputTokens: 350, attemptTimeoutMs: 4500, budgetMs: 4500 }
     );
     const llmMs = Date.now() - tLlmStart;
     const parsed = safeParseJSON(raw);
     if (!parsed) return res.status(502).json({ error: 'Model returned unparsable response' });
+
+    // Never let the model end a cohort-grounded interview early even if it
+    // tries — enforces the hackathon's >=8 questions / >=4 days requirement.
+    if (session.cohortGrounded) {
+      const daysCoveredCount = session.coveredDays.size;
+      const minimumMet = questionNumber >= COHORT_MIN_QUESTIONS && daysCoveredCount >= COHORT_MIN_DAYS;
+      if (parsed.done && !minimumMet && !hitAbsoluteCap) {
+        parsed.done = false;
+        if (!parsed.nextQuestion || parsed.nextQuestion.length < 5) {
+          parsed.nextQuestion = 'Let\'s go a bit deeper — tell me about another part of your cohort work.';
+        }
+      }
+    }
 
     const vocalConfidence = clamp(parsed.confidence, 0, 100, 50);
     const hasVisual = typeof visualConfidence === 'number' && !Number.isNaN(visualConfidence);
@@ -799,11 +1001,13 @@ Evaluate this answer and produce the next step, per the schema. Keep evidenceFee
       nextAction: parsed.nextAction || '',
       difficulty: session.difficulty,
       topicTag: session.practiceMode ? session.practiceFocus : (parsed.topicTag || 'general'),
+      dayCovered: session.cohortGrounded ? (parsed.dayCovered || null) : null,
       crossDayLink: !!parsed.crossDayLink,
       timestamp: Date.now()
     };
     session.turns.push(turn);
     session.lastActive = Date.now();
+    if (session.cohortGrounded && turn.dayCovered) session.coveredDays.add(turn.dayCovered);
 
     const isDone = !!parsed.done || overTime || hitAbsoluteCap;
     session.done = isDone;
@@ -826,6 +1030,10 @@ Evaluate this answer and produce the next step, per the schema. Keep evidenceFee
       targetMinutes,
       crossDayLink: turn.crossDayLink,
       practiceMode: session.practiceMode,
+      topicTag: turn.topicTag,
+      cohortGrounded: !!session.cohortGrounded,
+      dayCovered: turn.dayCovered,
+      daysCoveredCount: session.cohortGrounded ? session.coveredDays.size : undefined,
       done: isDone,
       timingMs: { llmMs, totalMs }
     });
@@ -873,7 +1081,7 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
 
  const timeline = turns.map(t => ({
       qNum: t.qNum, question: t.question, answer: t.answer, verdict: t.verdict,
-      topicTag: t.topicTag, difficulty: t.difficulty, evidenceFeedback: t.evidenceFeedback, crossDayLink: t.crossDayLink,
+      topicTag: t.topicTag, dayCovered: t.dayCovered || null, difficulty: t.difficulty, evidenceFeedback: t.evidenceFeedback, crossDayLink: t.crossDayLink,
       nextAction: t.nextAction
     }));
 
@@ -915,7 +1123,10 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
       revisionPlan: uniqueWeak.map(tag => ({ topic: tag, estimatedMinutes: 15 })),
       totalEstimatedMinutes: uniqueWeak.length * 15,
       practiceMode: session.practiceMode,
-      practiceResult
+      practiceResult,
+      cohortGrounded: !!session.cohortGrounded,
+      cohortCandidateName: session.cohortGrounded ? session.candidateName : undefined,
+      curriculumDaysCovered: session.cohortGrounded ? [...session.coveredDays].sort((a, b) => a - b) : undefined
     };
 
     persistSession(session.candidateKey, session, report).catch(e => console.error('[persist]', e.message));
@@ -998,6 +1209,190 @@ function clamp(val, min, max, fallback) {
   if (Number.isNaN(n)) return fallback;
   return Math.max(min, Math.min(max, Math.round(n)));
 }
+
+// =====================================================================
+// HACKATHON-REQUIRED ENDPOINT — POST /api/interview
+//
+// This block is 100% additive: it does not modify, call, or share state
+// with anything above (the existing /api/interview/start, /answer,
+// /report routes and their `sessions` Map are completely untouched — this
+// uses its own `specSessions` Map). It only reuses two existing pure
+// helper functions read-only: callLLM() and safeParseJSON().
+//
+// Implements the exact contract from technical-spec.md:
+//   1) First call:  { sessionId, candidate }        -> { reply, done:false }
+//   2) Turn calls:   { sessionId, message }          -> { reply, done:false }
+//   3) Final call:                                    -> { reply, done:true, feedback }
+//
+// It grounds the interview in the candidate's actual 31-day AI Cohort
+// curriculum record (missions passed/skipped/struggled-with), requires at
+// least 8 questions AND at least 4 distinct curriculum days covered
+// before it's allowed to end — the two most important gaps flagged in
+// the audit.
+// =====================================================================
+
+const CURRICULUM_FILE = path.join(DATA_DIR, 'curriculum.json');
+let _curriculumCache = null;
+function loadCurriculum() {
+  if (_curriculumCache) return _curriculumCache;
+  try {
+    _curriculumCache = JSON.parse(fs.readFileSync(CURRICULUM_FILE, 'utf8'));
+  } catch (e) {
+    console.error('[curriculum] failed to load curriculum.json — cohort-grounding will be limited:', e.message);
+    _curriculumCache = { cohort: '31-day AI Cohort', modules: [], days: [] };
+  }
+  return _curriculumCache;
+}
+function curriculumDayInfo(dayNum) {
+  const c = loadCurriculum();
+  return (c.days || []).find(d => d.day === dayNum) || null;
+}
+
+const specSessions = new Map(); // sessionId -> { candidate, candidateCtx, systemPrompt, turns, coveredDays, done, feedback }
+const SPEC_MIN_QUESTIONS = 8;
+const SPEC_MIN_DAYS = 4;
+
+// Turns the raw candidate.json record into a plain-language briefing for the
+// interviewer LLM, and separately tags which days were passed/struggled/skipped
+// so the prompt can steer toward at least 4 distinct real days.
+function buildCandidateContext(candidate) {
+  const member = candidate.member || {};
+  const missions = candidate.missions || [];
+  const signals = candidate.signals || {};
+  const struggled = missions.filter(m => !m.skipped && typeof m.attempts === 'number' && m.attempts >= 3);
+  const skipped = missions.filter(m => m.skipped);
+
+  const dayLines = missions.map(m => {
+    const info = curriculumDayInfo(m.day);
+    const title = info ? info.title : (m.title || ('Day ' + m.day));
+    if (m.skipped) return `Day ${m.day} — ${title}: SKIPPED`;
+    return `Day ${m.day} — ${title}: ${m.passed ? 'passed' : 'not passed'} (${m.attempts || 0} attempt${m.attempts === 1 ? '' : 's'})`;
+  }).join('\n');
+
+  const text = `Candidate: ${member.name || 'the candidate'}, applying for ${member.jobRole || 'a technical role'}` +
+    `${member.yearsExperience != null ? ' (' + member.yearsExperience + ' yrs experience' + (member.education ? ', ' + member.education : '') + ')' : ''}.\n` +
+    `Cohort progress signals: ${signals.missionsCompleted ?? '?'} missions completed, ${signals.missionsFirstTry ?? '?'} passed on the first try, active on ${signals.commitDays ?? '?'} days.\n\n` +
+    `31-Day AI Cohort curriculum record for this candidate:\n${dayLines || '(no mission data provided)'}\n\n` +
+    `Days with multiple attempts (likely weak areas — probe deeper here): ${struggled.map(m => 'Day ' + m.day + ' (' + (curriculumDayInfo(m.day) || {}).title + ')').join(', ') || 'none'}\n` +
+    `Skipped days (check if the concept was picked up elsewhere): ${skipped.map(m => 'Day ' + m.day + ' (' + (curriculumDayInfo(m.day) || {}).title + ')').join(', ') || 'none'}`;
+
+  return { text, availableDays: missions.map(m => m.day) };
+}
+
+function buildSpecSystemPrompt(candidateCtx) {
+  return `You are an AI technical interviewer for a 31-day AI/ML engineering cohort ("${loadCurriculum().cohort}"). You conduct a structured, conversational, multi-turn interview grounded in the candidate's ACTUAL learning journey from the cohort — not generic textbook trivia.
+
+${candidateCtx.text}
+
+RULES:
+1. Every question must trace back to a specific day/topic from the curriculum record above. Prioritize: (a) days with multiple attempts — probe deeper, since repeated attempts signal a shaky concept, (b) skipped days — check whether the candidate picked up the idea elsewhere, (c) days passed on the first try — verify it's real understanding and not luck.
+2. Your questions MUST be grounded in at least ${SPEC_MIN_DAYS} DIFFERENT curriculum days across the interview — do not stay on one day/topic the whole time.
+3. Ask a minimum of ${SPEC_MIN_QUESTIONS} questions total (natural follow-ups count) before ending.
+4. Adapt difficulty to how well the candidate answers — go deeper after a strong answer, simplify or clarify after a weak one.
+5. Be conversational: one question at a time, briefly acknowledge the previous answer before moving on. Do not lecture.
+6. Only end once you've covered at least ${SPEC_MIN_DAYS} distinct days AND asked at least ${SPEC_MIN_QUESTIONS} questions, and you have enough signal for a fair evaluation.
+
+Reply with STRICT JSON only, no markdown fences, in exactly this shape:
+{"reply": "<what you say to the candidate — the next question, or a closing statement if done>", "done": <true|false>, "dayCovered": <the curriculum day number this question is grounded in, or null if not applicable>}`;
+}
+
+app.post('/api/interview', async (req, res) => {
+  try {
+    const { sessionId, candidate, message } = req.body || {};
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+
+    let session = specSessions.get(sessionId);
+
+    // ---- 1) First call for this sessionId: initialize + ask the opening question ----
+    if (!session) {
+      if (!candidate) return res.status(400).json({ error: 'candidate is required to start a new session' });
+      const candidateCtx = buildCandidateContext(candidate);
+      session = {
+        candidate,
+        candidateCtx,
+        systemPrompt: buildSpecSystemPrompt(candidateCtx),
+        turns: [],
+        coveredDays: new Set(),
+        createdAt: Date.now(),
+        done: false,
+        feedback: null
+      };
+      specSessions.set(sessionId, session);
+
+      const raw = await callLLM(
+        session.systemPrompt,
+        'Begin the interview now. Greet the candidate briefly by name, then ask your first question, grounded in one of the specific curriculum days listed above.'
+      );
+      const parsed = safeParseJSON(raw) || {
+        reply: `Welcome${(candidate.member || {}).name ? ', ' + candidate.member.name : ''}. Let's start with one of the topics from your cohort — walk me through it in your own words.`,
+        done: false,
+        dayCovered: (candidateCtx.availableDays[0] || null)
+      };
+      session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+      if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
+      return res.json({ reply: parsed.reply, done: false });
+    }
+
+    // ---- Already finished — respond idempotently instead of erroring ----
+    if (session.done) {
+      return res.json({ reply: 'This interview has already ended.', done: true, feedback: session.feedback });
+    }
+
+    // ---- 2) Conversation turn ----
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message is required for a conversation turn' });
+    }
+    session.turns.push({ role: 'user', text: message });
+
+    const transcript = session.turns.map(t => (t.role === 'assistant' ? 'Interviewer: ' : 'Candidate: ') + t.text).join('\n');
+    const questionCount = session.turns.filter(t => t.role === 'assistant').length;
+    const daysCoveredCount = session.coveredDays.size;
+    const minimumMet = questionCount >= SPEC_MIN_QUESTIONS && daysCoveredCount >= SPEC_MIN_DAYS;
+
+    const userPrompt = `Conversation so far:\n${transcript}\n\n` +
+      `Questions asked so far: ${questionCount}. Distinct curriculum days covered so far: ${daysCoveredCount} (${[...session.coveredDays].join(', ') || 'none yet'}).\n` +
+      (minimumMet
+        ? 'The minimum requirement (>=8 questions AND >=4 distinct days) has been met — you may end now if you have enough signal, or continue if there is clear value in one more question.'
+        : 'The minimum requirement (>=8 questions AND >=4 distinct days) has NOT been met yet — do not end the interview yet, ask another grounded question.') +
+      '\n\nRespond with the next step per the schema.';
+
+    const raw = await callLLM(session.systemPrompt, userPrompt);
+    const parsed = safeParseJSON(raw) || { reply: 'Could you elaborate a bit more on that?', done: false, dayCovered: null };
+
+    // Never let the model end early even if it tries — this guarantees the
+    // hackathon's minimum-8-questions / 4-days requirement is actually enforced,
+    // not just requested.
+    if (parsed.done && !minimumMet) {
+      parsed.done = false;
+      if (!parsed.reply || parsed.reply.length < 5) {
+        parsed.reply = 'Let\'s go a bit deeper — ' + 'tell me more about another part of your cohort work.';
+      }
+    }
+
+    if (parsed.done) {
+      const feedbackRaw = await callLLM(
+        'You are an interview evaluator. Reply with strict JSON only, no markdown fences.',
+        `Based on this full interview transcript, produce a final evaluation.\n\nTranscript:\n${transcript}\n\nCandidate curriculum context:\n${session.candidateCtx.text}\n\n` +
+        `Reply with STRICT JSON only in exactly this shape: {"summary": "<2-3 sentence overall assessment>", "strengths": ["<point>", "..."], "gaps": ["<point>", "..."], "next": ["<actionable next step>", "..."]}`
+      );
+      const feedback = safeParseJSON(feedbackRaw) || { summary: 'Interview completed.', strengths: [], gaps: [], next: [] };
+      session.done = true;
+      session.feedback = feedback;
+      return res.json({ reply: parsed.reply || 'Thank you — that concludes the interview.', done: true, feedback });
+    }
+
+    session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+    if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
+    return res.json({ reply: parsed.reply, done: false });
+
+  } catch (err) {
+    console.error('[POST /api/interview]', err);
+    res.status(500).json({ error: 'Interview processing failed', detail: err.message });
+  }
+});
+// =====================================================================
+// END hackathon-required endpoint block
+// =====================================================================
 
 app.listen(PORT, () => {
   console.log(`Interview agent backend listening on port ${PORT}`);

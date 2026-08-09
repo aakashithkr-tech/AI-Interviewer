@@ -342,6 +342,13 @@
   .tick .mark.partial{ background:var(--brass); }
   .tick .mark.incorrect{ background:var(--red); }
   .tick .link-ico{ color:var(--teal); }
+  .evidence-count{ color:var(--ink-dim); font-weight:400; text-transform:none; letter-spacing:0; }
+  .evidence-list{ display:flex; flex-direction:column; gap:7px; max-height:260px; overflow-y:auto; }
+  .evidence-empty{ font-size:11.5px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; line-height:1.5; }
+  .evidence-item{ display:flex; align-items:center; gap:8px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--ink); opacity:0; transform:translateY(4px); animation:evidenceIn .35s ease forwards; }
+  .evidence-item .ev-check{ color:var(--teal); flex-shrink:0; font-size:12.5px; }
+  .evidence-item .ev-link{ color:var(--teal); margin-left:2px; }
+  @keyframes evidenceIn{ to{ opacity:1; transform:translateY(0); } }
 
   /* ===== REPORT ===== */
   #report{ gap:30px; padding-top:20px; }
@@ -1319,7 +1326,16 @@
       <p class="sub">Tailor your mock interview parameters for maximum impact.</p>
     </div>
 
-    <section class="studio-panel-final studio-subject-panel">
+    <section class="studio-panel-final studio-subject-panel" id="cohortPanel">
+      <div class="studio-panel-head"><div class="section-label">STEP 0 — COHORT-GROUNDED INTERVIEW <span class="optional-tag">recommended</span></div></div>
+      <p class="sub" style="margin:-4px 0 12px;">Pick a candidate's real 31-day AI Cohort progress and the interviewer will ask questions grounded in their actual missions — at least 8 questions across 4+ curriculum days.</p>
+      <select id="cohortCandidateSelect" class="mono resume-textarea" style="height:auto;padding:12px 14px;">
+        <option value="">— No cohort profile (generic topic interview below) —</option>
+      </select>
+      <div id="cohortCandidateHint" class="resume-hint" style="margin-top:8px;display:none;"></div>
+    </section>
+
+    <section class="studio-panel-final studio-subject-panel" id="genericSubjectSection">
       <div class="studio-panel-head"><div class="section-label">STEP 1 — CHOOSE SUBJECT OR FOCUS AREA</div></div>
       <div class="studio-subject-grid-final" id="subjectChips">
         <button class="subject-chip subject-chip-final" data-topic="Machine Learning Fundamentals"><span class="chip-icon">🧠</span><span>Machine Learning</span></button>
@@ -1506,9 +1522,17 @@
         </div>
       </div>
 
-      <div class="panel">
-        <h3>Timeline</h3>
-        <div class="timeline" id="timeline"></div>
+      <div>
+        <div class="panel">
+          <h3>Timeline</h3>
+          <div class="timeline" id="timeline"></div>
+        </div>
+        <div class="panel evidence-panel" id="evidencePanel" style="margin-top:16px;">
+          <h3>Evidence Covered <span class="evidence-count" id="evidenceCount">(0)</span></h3>
+          <div class="evidence-list" id="evidenceList">
+            <div class="evidence-empty" id="evidenceEmpty">Topics you're tested on will check off here as the interview goes.</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1520,6 +1544,7 @@
       <div class="report-sub-row">
         <span class="recommend" id="recommendBadge">—</span>
         <span class="crossday-pill" id="dayPill">Day 1</span>
+        <span class="crossday-pill" id="cohortPill" style="display:none;">🎓 Cohort-grounded</span>
         <span class="crossday-pill" id="linkPill" style="display:none;">🔗 0 cross-day links used</span>
         <span class="crossday-pill" id="practiceDrillPill" style="display:none;">🎯 Practice Drill</span>
       </div>
@@ -1653,6 +1678,8 @@
   let manualStopRequested = false; // set true only by the "I'm done" button — the one explicit way to finalize an answer
   let practiceFocus = null; // set when the candidate enters practice mode via a weakness "Practice" button
   let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
+  let selectedCohortCandidateKey = ''; // set when the candidate picks a cohort profile in Studio (Step 0)
+  let cohortGroundedActive = false; // true for the lifetime of a cohort-grounded interview session
 
   // ---------- screens ----------
   const NAV_SCREENS = ['dashboard', 'studio', 'history', 'profile']; // screens that get a navbar link
@@ -1677,7 +1704,7 @@
     loadDashboardData();
     loadMemoryData();
   }
-  function goToStudio(){ showScreen('studio'); }
+  function goToStudio(){ showScreen('studio'); loadCohortCandidateOptions(); }
   function goToHistory(){ showScreen('history'); loadHistoryPage(); }
   function goToProfile(){ showScreen('profile'); loadProfilePage(); }
   document.querySelectorAll('#navLinks button').forEach(btn => {
@@ -1691,6 +1718,41 @@
   });
   document.getElementById('qaStartInterview').addEventListener('click', goToStudio);
   document.getElementById('qaViewHistory').addEventListener('click', goToHistory);
+
+  // ---------- cohort-grounded interview: profile selector (Step 0, optional) ----------
+  let cohortCandidateOptionsLoaded = false;
+  async function loadCohortCandidateOptions(){
+    if (cohortCandidateOptionsLoaded) return;
+    const select = document.getElementById('cohortCandidateSelect');
+    try {
+      const res = await fetch(apiBase() + '/api/cohort-candidates');
+      const list = await res.json();
+      list.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.key;
+        opt.textContent = c.name + (c.jobRole ? ' — ' + c.jobRole : '') + ' (' + c.missionsCompleted + ' missions)';
+        select.appendChild(opt);
+      });
+      cohortCandidateOptionsLoaded = true;
+    } catch (e) {
+      console.warn('Could not load cohort candidates', e);
+    }
+  }
+  const genericSubjectSection = document.getElementById('genericSubjectSection');
+  document.getElementById('cohortCandidateSelect').addEventListener('change', (e) => {
+    selectedCohortCandidateKey = e.target.value || '';
+    const hint = document.getElementById('cohortCandidateHint');
+    if (selectedCohortCandidateKey){
+      genericSubjectSection.style.opacity = '0.4';
+      genericSubjectSection.style.pointerEvents = 'none';
+      hint.style.display = 'block';
+      hint.textContent = 'Cohort-grounded mode active — the interviewer will pull questions from this candidate\'s actual mission history (min. 8 questions, 4+ curriculum days). Subject picker below is skipped.';
+    } else {
+      genericSubjectSection.style.opacity = '';
+      genericSubjectSection.style.pointerEvents = '';
+      hint.style.display = 'none';
+    }
+  });
   function setConn(label, live){
     document.getElementById('connLabel').textContent = label;
     document.getElementById('connDot').classList.toggle('live', !!live);
@@ -2496,6 +2558,44 @@
     timeline.scrollTop = timeline.scrollHeight;
   }
 
+  // ---------- evidence panel (judge-visible proof of topic coverage) ----------
+  let evidenceCovered = new Map(); // topicTag -> { count, crossDayLink }
+  function resetEvidencePanel(){
+    evidenceCovered = new Map();
+    const list = document.getElementById('evidenceList');
+    list.innerHTML = '<div class="evidence-empty" id="evidenceEmpty">Topics you\'re tested on will check off here as the interview goes.</div>';
+    document.getElementById('evidenceCount').textContent = '(0)';
+  }
+  function addEvidence(topicTag, crossDayLink){
+    if (!topicTag) return;
+    const key = String(topicTag).trim();
+    if (!key) return;
+    const existing = evidenceCovered.get(key);
+    if (existing){
+      existing.count += 1;
+      existing.crossDayLink = existing.crossDayLink || !!crossDayLink;
+    } else {
+      evidenceCovered.set(key, { count: 1, crossDayLink: !!crossDayLink });
+    }
+    renderEvidencePanel();
+  }
+  function renderEvidencePanel(){
+    const list = document.getElementById('evidenceList');
+    document.getElementById('evidenceCount').textContent = '(' + evidenceCovered.size + ')';
+    if (evidenceCovered.size === 0){
+      list.innerHTML = '<div class="evidence-empty" id="evidenceEmpty">Topics you\'re tested on will check off here as the interview goes.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    evidenceCovered.forEach((info, tag) => {
+      const el = document.createElement('div');
+      el.className = 'evidence-item';
+      el.innerHTML = '<span class="ev-check">✓</span><span>' + tag + (info.count > 1 ? ' <span style="opacity:.5;">×' + info.count + '</span>' : '') + '</span>' +
+        (info.crossDayLink ? '<span class="ev-link">🔗</span>' : '');
+      list.appendChild(el);
+    });
+  }
+
   // ---------- persona-matched TTS voices ----------
   let cachedVoices = [];
   function refreshVoices(){ cachedVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; }
@@ -2938,6 +3038,7 @@
     }
 
     addTick(qNum, data.verdict, data.difficulty ? ('L' + data.difficulty) : '', data.crossDayLink);
+    addEvidence(cohortGroundedActive && data.dayCovered ? ('Day ' + data.dayCovered) : data.topicTag, data.crossDayLink);
     setFeedback(data.evidenceFeedback);
 
     if (data.done){
@@ -2962,9 +3063,9 @@
     const customBox = document.getElementById('customTopicBox');
     if (customBox.classList.contains('show')) selectedTopic = document.getElementById('topicInput').value.trim();
 
-    if (!practiceFocus && !selectedTopic){
+    if (!selectedCohortCandidateKey && !practiceFocus && !selectedTopic){
       welcomeWarning.style.display = 'block';
-      welcomeWarning.textContent = 'Pick a subject or type a custom topic first.';
+      welcomeWarning.textContent = 'Pick a cohort profile, a subject, or type a custom topic first.';
       return;
     }
     if (window.localStorage) localStorage.setItem('interview_api_base', apiBase());
@@ -2972,7 +3073,7 @@
     const btn = document.getElementById('startBtn');
     btn.disabled = true; btn.textContent = 'Connecting…';
     setConn('starting session', false);
-    markLatency('start button clicked', { practiceMode: !!practiceFocus });
+    markLatency('start button clicked', { practiceMode: !!practiceFocus, cohortGrounded: !!selectedCohortCandidateKey });
 
     try {
       const startFetchBegin = performance.now();
@@ -2982,7 +3083,8 @@
           topic: selectedTopic, persona, candidateName: userName, experience, interviewType, durationMinutes,
           resumeContext: document.getElementById('resumeInput').value.trim(),
           practiceFocus: practiceFocus || undefined,
-          practiceBaselineScore: typeof practiceBaselineScore === 'number' ? practiceBaselineScore : undefined
+          practiceBaselineScore: typeof practiceBaselineScore === 'number' ? practiceBaselineScore : undefined,
+          cohortCandidateKey: selectedCohortCandidateKey || undefined
         })
       });
       const data = await res.json();
@@ -2993,21 +3095,27 @@
       interviewActive = true;
       voiceMuted = false;
       lastDifficultyLevel = null;
+      cohortGroundedActive = !!data.cohortGrounded;
       document.getElementById('muteBtn').textContent = '🔊 Mute voiceover';
       document.getElementById('muteBtn').classList.remove('muted');
       document.getElementById('sessionLabel').style.display = 'inline';
       document.getElementById('sessionLabel').textContent = sessionId.slice(0,8);
-      document.getElementById('rhTopic').textContent = data.practiceMode ? ('Practice: ' + (data.practiceFocus || practiceFocus)) : selectedTopic;
-      document.getElementById('rhType').textContent = data.practiceMode ? 'Practice Drill' : interviewType;
+      document.getElementById('rhTopic').textContent = cohortGroundedActive
+        ? ('🎓 Cohort: ' + (data.cohortCandidateName || 'candidate'))
+        : (data.practiceMode ? ('Practice: ' + (data.practiceFocus || practiceFocus)) : selectedTopic);
+      document.getElementById('rhType').textContent = cohortGroundedActive ? 'Cohort-Grounded' : (data.practiceMode ? 'Practice Drill' : interviewType);
       document.getElementById('diffToast').classList.remove('show');
       startRoomTimer();
       setConn('live', true);
+      document.getElementById('timeline').innerHTML = '';
+      resetEvidencePanel();
       showScreen('room');
       if (cameraEnabled) startPostureTracking();
       // Practice mode is one-shot per interview — clear it now that the
       // session has actually started, so the next interview defaults back
       // to a normal one unless the candidate picks "Practice" again.
       clearPracticeMode();
+      addEvidence(data.dayCovered ? ('Day ' + data.dayCovered) : null, false);
       askAndListen(data.question, data.difficulty, data.questionNumber, 0, data.targetMinutes, data.crossDayLink);
     } catch (err) {
       setConn('error', false);
@@ -3142,6 +3250,16 @@
     document.getElementById('dayPill').style.display = data.practiceMode ? 'none' : 'inline-flex';
     document.getElementById('dayPill').textContent = 'Day ' + (data.dayNumber || 1);
     document.getElementById('practiceDrillPill').style.display = data.practiceMode ? 'inline-flex' : 'none';
+
+    const cohortPill = document.getElementById('cohortPill');
+    if (data.cohortGrounded){
+      cohortPill.style.display = 'inline-flex';
+      const days = data.curriculumDaysCovered || [];
+      cohortPill.textContent = '🎓 ' + (data.cohortCandidateName ? data.cohortCandidateName + ' · ' : '') + days.length + ' curriculum day' + (days.length === 1 ? '' : 's') + (days.length ? ' (' + days.join(', ') + ')' : '');
+      document.getElementById('dayPill').style.display = 'none';
+    } else {
+      cohortPill.style.display = 'none';
+    }
 
     const practiceCard = document.getElementById('practiceResultCard');
     if (data.practiceMode && data.practiceResult){

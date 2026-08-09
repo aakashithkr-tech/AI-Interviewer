@@ -1,0 +1,75 @@
+{
+  "aakashi-thakur": {
+    "member": {
+      "name": "Aakashi Thakur",
+      "jobRole": "AI Engineer",
+      "yearsExperience": 1,
+      "education": "B.Tech CSE"
+    },
+    "signals": {
+      "missionsCompleted": 9,
+      "missionsFirstTry": 5,
+      "commitDays": 22
+    },
+    "missions": [
+      { "day": 1, "title": "VS Code & Python Environment Setup", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 4, "title": "Reading & Processing Structured Data", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 7, "title": "Embeddings Explained", "passed": true, "skipped": false, "attempts": 3 },
+      { "day": 9, "title": "Building & Populating the Vector Database", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 11, "title": "RAG End-to-End & LLM API Basics", "passed": true, "skipped": false, "attempts": 4 },
+      { "day": 12, "title": "Prompt Engineering Fundamentals", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 16, "title": "Chatbot Backend & API Integration", "passed": true, "skipped": false, "attempts": 2 },
+      { "day": 20, "title": "Conversation Memory & Context Management", "passed": false, "skipped": true, "attempts": 0 },
+      { "day": 23, "title": "Model Context Protocol (MCP)", "passed": true, "skipped": false, "attempts": 1 }
+    ]
+  },
+  "rohan-verma": {
+    "member": {
+      "name": "Rohan Verma",
+      "jobRole": "Backend / AI Systems Engineer",
+      "yearsExperience": 2,
+      "education": "B.E. Information Technology"
+    },
+    "signals": {
+      "missionsCompleted": 11,
+      "missionsFirstTry": 4,
+      "commitDays": 27
+    },
+    "missions": [
+      { "day": 2, "title": "Local LLM & AI Coding Assistant Setup", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 6, "title": "Building the Knowledge Base", "passed": true, "skipped": false, "attempts": 2 },
+      { "day": 8, "title": "Vector Databases Overview", "passed": true, "skipped": false, "attempts": 3 },
+      { "day": 10, "title": "The Retrieval & Matching Engine", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 14, "title": "Fine-Tuning: Concepts & When to Use It", "passed": false, "skipped": true, "attempts": 0 },
+      { "day": 15, "title": "Fine-Tuning: Hands-On with LoRA & QLoRA", "passed": false, "skipped": true, "attempts": 0 },
+      { "day": 18, "title": "Full-Stack Integration & Streaming Responses", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 21, "title": "Agentic Frameworks: LangChain Agents & Tool Use", "passed": true, "skipped": false, "attempts": 4 },
+      { "day": 22, "title": "Multi-Agent Orchestration", "passed": true, "skipped": false, "attempts": 2 },
+      { "day": 27, "title": "Security, Privacy & Guardrails", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 28, "title": "Docker & Kubernetes Deployment", "passed": true, "skipped": false, "attempts": 1 }
+    ]
+  },
+  "priya-nair": {
+    "member": {
+      "name": "Priya Nair",
+      "jobRole": "AI Product Engineer",
+      "yearsExperience": 0,
+      "education": "M.Sc. Data Science"
+    },
+    "signals": {
+      "missionsCompleted": 8,
+      "missionsFirstTry": 6,
+      "commitDays": 19
+    },
+    "missions": [
+      { "day": 3, "title": "First AI Project, React Frontend & GitHub", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 5, "title": "Reading & Processing Unstructured Data", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 7, "title": "Embeddings Explained", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 13, "title": "Advanced Prompting: Function Calling & Structured Outputs", "passed": true, "skipped": false, "attempts": 3 },
+      { "day": 17, "title": "Chatbot Frontend Development", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 19, "title": "Response Formatting & Rich Outputs", "passed": true, "skipped": false, "attempts": 1 },
+      { "day": 25, "title": "Chatbot Evaluation & Testing", "passed": false, "skipped": true, "attempts": 0 },
+      { "day": 31, "title": "Capstone Project & Final Demo", "passed": true, "skipped": false, "attempts": 2 }
+    ]
+  }
+}
