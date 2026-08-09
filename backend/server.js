@@ -421,7 +421,7 @@ async function persistSession(candidateKey, session, report) {
     return { tag, summary, avgCompetence: avgComp, embedding };
   }));
 
-  store[candidateKey].sessions.push({
+  const entry = {
     sessionId: session.id,
     topic: session.topic,
     date: new Date(session.startedAt).toISOString(),
@@ -430,7 +430,14 @@ async function persistSession(candidateKey, session, report) {
     practiceMode: !!session.practiceMode,
     practiceFocus: session.practiceFocus || null,
     report: report || null
-  });
+  };
+  // FIX: /report can legitimately be fetched more than once for the same
+  // session (page reload, navigating back to it, etc.) — persistSession
+  // used to blindly .push() every time, creating duplicate History rows
+  // for one real interview. Now it upserts by sessionId instead.
+  const existingIdx = store[candidateKey].sessions.findIndex(s => s.sessionId === session.id);
+  if (existingIdx >= 0) store[candidateKey].sessions[existingIdx] = entry;
+  else store[candidateKey].sessions.push(entry);
   if (store[candidateKey].sessions.length > 60) store[candidateKey].sessions.shift();
   saveStore(store);
 }
