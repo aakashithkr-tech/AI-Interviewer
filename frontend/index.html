@@ -781,19 +781,19 @@
 
   <!-- ===================== LOGIN SCREEN ===================== -->
   <div class="screen" id="login">
-    <div class="auth-card">
-      <div class="auth-mark"></div>
+    <div class="login-card">
+      <div class="login-mark"></div>
       <h1>Welcome back</h1>
       <p class="sub">Sign in to your account</p>
-      <div class="auth-field">
+      <div class="field-group">
         <label for="loginNameInput">Full name</label>
         <input type="text" id="loginNameInput" placeholder="e.g. Aakashi Thakur" autocomplete="name" />
       </div>
-      <div class="auth-field" style="display:none;">
+      <div class="field-group" style="display:none;">
         <label for="loginEmailInput">Email address</label>
         <input type="text" id="loginEmailInput" placeholder="you@example.com" autocomplete="email" />
       </div>
-      <div class="auth-field" style="display:none;">
+      <div class="field-group" style="display:none;">
         <label for="loginPasswordInput">Password</label>
         <div class="pw-wrap">
           <input type="password" id="loginPasswordInput" placeholder="••••••••" autocomplete="current-password" />
@@ -817,19 +817,19 @@
 
   <!-- ===================== SIGNUP SCREEN ===================== -->
   <div class="screen" id="signup">
-    <div class="auth-card">
-      <div class="auth-mark"></div>
+    <div class="login-card">
+      <div class="login-mark"></div>
       <h1>Create your account</h1>
       <p class="sub">Start practicing with your AI interviewer</p>
-      <div class="auth-field">
+      <div class="field-group">
         <label for="signupNameInput">Full name</label>
         <input type="text" id="signupNameInput" placeholder="e.g. Aakashi Thakur" autocomplete="name" />
       </div>
-      <div class="auth-field" style="display:none;">
+      <div class="field-group" style="display:none;">
         <label for="signupEmailInput">Email address</label>
         <input type="text" id="signupEmailInput" placeholder="you@example.com" autocomplete="email" />
       </div>
-      <div class="auth-field" style="display:none;">
+      <div class="field-group" style="display:none;">
         <label for="signupPasswordInput">Password</label>
         <div class="pw-wrap">
           <input type="password" id="signupPasswordInput" placeholder="••••••••" autocomplete="new-password" />
@@ -1214,12 +1214,12 @@
   const apiBaseInput = document.getElementById('apiBaseInput');
   apiBaseInput.value = window.localStorage ? (localStorage.getItem('interview_api_base') || DEFAULT_API_BASE) : DEFAULT_API_BASE;
   function apiBase(){ return (apiBaseInput.value || DEFAULT_API_BASE).replace(/\/+$/,''); }
-  // ---------- backend warm-up (Render free-tier cold start mitigation) ----------
+  // ---------- backend warm-up ----------
   function warmUpBackend(){
     const start = performance.now();
     fetch(apiBase() + '/api/health').then(() => {
       markLatency('backend warm-up ping OK', { ms: Math.round(performance.now() - start) });
-    }).catch(() => { /* not fatal — start button will just eat the cold-start hit instead */ });
+    }).catch(() => {});
   }
   warmUpBackend();
   // ---------- speech support check ----------
@@ -1239,25 +1239,26 @@
   let sessionId = null;
   let recognizing = false;
   let recognition = null;
-  let interviewActive = false; // guards the recursive askAndListen loop so it stops cleanly
+  let interviewActive = false;
   let voiceMuted = false;
-  let lastAskArgs = null; // remembers the current question so a mic error can be retried without losing place
-  let lastDifficultyLevel = null; // for the "difficulty adapting" toast
+  let lastAskArgs = null;
+  let lastDifficultyLevel = null;
   let roomTimerInterval = null;
   let roomTimerStart = null;
-  let currentTimeline = []; // populated on report load — powers both the full-transcript view and replay
+  let currentTimeline = [];
   let replayIndex = 0;
   let replayPlaying = false;
-  let manualStopRequested = false; // set true only by the "I'm done" button — the one explicit way to finalize an answer
-  let practiceFocus = null; // set when the candidate enters practice mode via a weakness "Practice" button
-  let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
-  // ---------- screens ----------
-  const NAV_SCREENS = ['dashboard', 'studio', 'history', 'profile']; // screens that get a navbar link
-  function showScreen(id){
+  let manualStopRequested = false;
+  let practiceFocus = null;
+  let practiceBaselineScore = null;
+  
+  // ---------- screens & history routing ----------
+  const NAV_SCREENS = ['dashboard', 'studio', 'history', 'profile', 'login', 'signup', 'landing', 'room', 'report'];
+  function showScreen(id, pushHistory = true){
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    // navbar links: only visible once logged in, hidden entirely during a live
-    // interview (room) so a candidate can't accidentally navigate off mid-answer.
+    const targetEl = document.getElementById(id);
+    if (targetEl) targetEl.classList.add('active');
+    
     const navLinks = document.getElementById('navLinks');
     if (userName && id !== 'room'){
       navLinks.style.display = 'flex';
@@ -1267,7 +1268,35 @@
     } else {
       navLinks.style.display = 'none';
     }
+
+    if (pushHistory && window.history && window.history.pushState) {
+      if (id !== 'landing' || userName) {
+        window.history.pushState({ screen: id }, '', '#' + id);
+      }
+    }
   }
+
+  window.addEventListener('popstate', (e) => {
+    if (e.state && e.state.screen) {
+      const s = e.state.screen;
+      document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+      const el = document.getElementById(s);
+      if (el) el.classList.add('active');
+      const navLinks = document.getElementById('navLinks');
+      if (userName && s !== 'room'){
+        navLinks.style.display = 'flex';
+        document.querySelectorAll('#navLinks button').forEach(b => {
+          b.classList.toggle('active', b.dataset.nav === s);
+        });
+      } else {
+        navLinks.style.display = 'none';
+      }
+    } else {
+      if (userName) goToDashboard();
+      else showScreen('landing', false);
+    }
+  });
+
   function goToDashboard(){
     showScreen('dashboard');
     loadReturningBanner();
@@ -1277,6 +1306,7 @@
   function goToStudio(){ showScreen('studio'); }
   function goToHistory(){ showScreen('history'); loadHistoryPage(); }
   function goToProfile(){ showScreen('profile'); loadProfilePage(); }
+
   document.querySelectorAll('#navLinks button').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.nav;
@@ -1292,13 +1322,11 @@
     document.getElementById('connLabel').textContent = label;
     document.getElementById('connDot').classList.toggle('live', !!live);
   }
-  // ---------- unified pipeline-state indicator (Listening / Processing / AI Speaking) ----------
   function setInterviewState(state, label){
     const pill = document.getElementById('statePill');
     const pillLabel = document.getElementById('statePillLabel');
     pill.className = 'state-pill' + (state ? ' ' + state : '');
     pillLabel.textContent = label || state || 'idle';
-    markLatency('state -> ' + (state || 'idle'), { label });
   }
   function stopInterview(){
     interviewActive = false;
@@ -1313,7 +1341,6 @@
     stopRoomTimer();
     lastDifficultyLevel = null;
   }
-  // ---------- mute / exit controls (interview room) ----------
   const muteBtn = document.getElementById('muteBtn');
   muteBtn.addEventListener('click', () => {
     voiceMuted = !voiceMuted;
@@ -1329,7 +1356,6 @@
     document.getElementById('sessionLabel').style.display = 'none';
     goToDashboard();
   });
-  // ---------- login ----------
   function initials(name){
     return name.trim().split(/\s+/).slice(0,2).map(w => w[0].toUpperCase()).join('') || '?';
   }
@@ -1396,7 +1422,7 @@
   document.getElementById('userChip').addEventListener('click', goToProfile);
   document.getElementById('profileSignoutBtn').addEventListener('click', doSignOut);
   tryAutoLogin();
-  // ---------- landing / hero ----------
+  
   document.getElementById('heroStartBtn').addEventListener('click', () => showScreen('login'));
   document.getElementById('heroDemoBtn').addEventListener('click', () => {
     const card = document.getElementById('previewCard');
@@ -1404,7 +1430,7 @@
     card.classList.add('pulse');
     setTimeout(() => card.classList.remove('pulse'), 1600);
   });
-  // ---------- returning candidate banner (cross-day, powered by the RAG memory store) ----------
+
   async function loadReturningBanner(){
     const banner = document.getElementById('returningBanner');
     banner.classList.remove('show');
@@ -1423,14 +1449,15 @@
         tagsEl.appendChild(s);
       });
       banner.classList.add('show');
-    } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
+    } catch (e) {}
   }
-  // ---------- dashboard: readiness + skill bars + weakest area + recent interviews ----------
+
   function scoreClass(n){ return n >= 75 ? 'good' : n >= 55 ? 'mid' : 'low'; }
   function fmtDate(iso){
     try { return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric' }); }
     catch(e){ return ''; }
   }
+
   async function loadDashboardData(){
     const dashGrid = document.getElementById('dashGrid');
     if (!userName) return;
@@ -1483,9 +1510,9 @@
       }
       const qaSub = document.getElementById('qaHistorySub');
       if (qaSub) qaSub.textContent = (data.sessions ? data.sessions.length : 0) + ' interview' + (data.sessions && data.sessions.length === 1 ? '' : 's');
-    } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
+    } catch (e) {}
   }
-  // ---------- history page ----------
+
   async function loadHistoryPage(){
     const list = document.getElementById('historyList');
     const empty = document.getElementById('historyEmpty');
@@ -1562,7 +1589,7 @@
       });
     } catch (e) { empty.style.display = 'block'; empty.textContent = 'Could not load history — check your connection and try again.'; }
   }
-  // ---------- profile page ----------
+
   async function loadProfilePage(){
     document.getElementById('profileAvatar').textContent = initials(userName);
     document.getElementById('profileName').textContent = userName;
@@ -1579,9 +1606,9 @@
         document.getElementById('profileReadiness').textContent = 'Not evaluated';
         document.getElementById('profileCount').textContent = '0';
       }
-    } catch (e) { /* not fatal — profile still shows name */ }
+    } catch (e) {}
   }
-  // ---------- 🧠 AI Interview Memory ----------
+
   const MEMORY_STATUS_LABEL = {
     improved: '↑ Improved',
     needs_practice: '→ Needs practice',
@@ -1617,9 +1644,9 @@
         row.appendChild(btn);
         list.appendChild(row);
       });
-    } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
+    } catch (e) {}
   }
-  // ---------- practice mode ----------
+
   function showPracticeBanner(tag, baselineScore){
     document.getElementById('practiceBannerTag').textContent = tag;
     document.getElementById('practiceBannerBaseline').textContent =
@@ -1662,7 +1689,7 @@
     selectedTopic = topic;
     setTimeout(() => document.getElementById('startBtn').scrollIntoView({ behavior:'smooth', block:'center' }), 50);
   }
-  // ---------- subject chips ----------
+
   document.querySelectorAll('.subject-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('selected'));
@@ -1680,7 +1707,7 @@
     });
   });
   document.getElementById('topicInput').addEventListener('input', (e) => { selectedTopic = e.target.value.trim(); });
-  // ---------- resume/JD persistence ----------
+
   const resumeInputEl = document.getElementById('resumeInput');
   if (resumeInputEl) {
     const savedResume = window.localStorage ? localStorage.getItem('interview_resume_context') : '';
@@ -1778,7 +1805,7 @@
       }
     });
   }
-  // ---------- persona selection ----------
+
   document.querySelectorAll('.persona-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.persona-btn').forEach(b => b.classList.remove('selected'));
@@ -1786,7 +1813,7 @@
       persona = btn.dataset.persona;
     });
   });
-  // ---------- experience / interview type / duration + plan preview ----------
+
   let experience = 'Intermediate';
   let interviewType = 'Technical';
   let durationMinutes = 30;
@@ -1827,7 +1854,7 @@
     });
   });
   renderPlan();
-  // ---------- difficulty ladder ----------
+
   function renderLadder(level){
     const ladder = document.getElementById('ladder');
     ladder.innerHTML = '';
@@ -1838,7 +1865,7 @@
       ladder.appendChild(div);
     }
   }
-  // ---------- adaptive difficulty toast ----------
+
   function showDifficultyToast(newLevel, oldLevel){
     const toast = document.getElementById('diffToast');
     if (oldLevel === null || newLevel === oldLevel){ toast.classList.remove('show'); return; }
@@ -1847,7 +1874,7 @@
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3800);
   }
-  // ---------- room header: live timer + recording state ----------
+
   function startRoomTimer(){
     roomTimerStart = Date.now();
     const el = document.getElementById('rhTimer');
@@ -1863,9 +1890,7 @@
     clearInterval(roomTimerInterval);
     roomTimerInterval = null;
   }
-  // =====================================================================
-  // Camera / posture-confidence engine
-  // =====================================================================
+
   let cameraEnabled = false;
   let cameraStream = null;
   let poseLandmarker = null;
@@ -1880,6 +1905,7 @@
   const cameraToggleBtn = document.getElementById('cameraToggleBtn');
   const camToggleRoomBtn = document.getElementById('camToggleRoomBtn');
   let cameraBusy = false;
+
   function syncCameraButtons(){
     if (cameraEnabled){
       cameraToggleBtn.textContent = '✅ Camera enabled — tap to turn off';
@@ -1939,6 +1965,7 @@
   }
   cameraToggleBtn.addEventListener('click', toggleCamera);
   camToggleRoomBtn.addEventListener('click', toggleCamera);
+
   async function ensurePoseModel(){
     if (poseLandmarker || poseLoadAttempted) return poseLandmarker;
     poseLoadAttempted = true;
@@ -2023,7 +2050,7 @@
     document.getElementById('vfGaze').style.width = v.gaze + '%';
     document.getElementById('vvGaze').textContent = v.gaze;
   }
-  // ---------- orb state ----------
+
   const orb = document.getElementById('orb');
   const orbLabel = document.getElementById('orbLabel');
   function setOrb(state, label){
@@ -2040,7 +2067,7 @@
     timeline.appendChild(el);
     timeline.scrollTop = timeline.scrollHeight;
   }
-  // ---------- persona-matched TTS voices ----------
+
   let cachedVoices = [];
   function refreshVoices(){ cachedVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; }
   if (window.speechSynthesis){
@@ -2056,7 +2083,7 @@
     if (p === 'faang') return byName(['male','alex','daniel','guy','uk english male']) || pool[Math.min(2, pool.length - 1)];
     return byName(['female','zira','samantha','us english']) || pool[0];
   }
-  // ---------- TTS ----------
+
   let currentUtterResolve = null;
   function speak(text){
     return new Promise((resolve) => {
@@ -2086,7 +2113,7 @@
       try { recognition.stop(); } catch (e) {}
     }
   });
-  // ---------- report: full transcript + replay ----------
+
   const transcriptToggleBtn = document.getElementById('transcriptToggleBtn');
   const replayToggleBtn = document.getElementById('replayToggleBtn');
   const transcriptWrap = document.getElementById('transcriptWrap');
@@ -2198,7 +2225,7 @@
     replayIndex = Math.min(currentTimeline.length - 1, replayIndex + 1);
     renderReplayStep();
   });
-  // ---------- STT ----------
+
   function listenOnce(){
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
@@ -2228,7 +2255,7 @@
       document.getElementById('micBtn').classList.add('on');
     });
   }
-  // ---------- STT with barge-in ----------
+
   function listenWithBargeIn(isAiSpeaking, onBargeIn){
    return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
@@ -2330,7 +2357,6 @@
     });
   }
  
-  // ---------- voice "exit interview" command ----------
   function isExitCommand(text){
     const t = (text || '').toLowerCase();
     const phrases = ['exit interview', 'end interview', 'stop interview', 'exit the interview',
@@ -2352,7 +2378,7 @@
     try { reply = await listenOnce(); } catch (e) { return false; }
     return /\b(yes|yeah|yep|confirm|sure|correct)\b/i.test(reply || '');
   }
-  // ---------- mic error recovery ----------
+
   const micBtn = document.getElementById('micBtn');
   function showMicRetry(){
     micBtn.textContent = '🎙️ Tap to retry';
@@ -2370,7 +2396,7 @@
     micBtn.onclick = null;
     micBtn.textContent = 'hold mic disabled — auto listening';
   }
-  // ---------- main interview loop ----------
+
   async function askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink){
     if (!interviewActive) return;
     lastAskArgs = [questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink];
@@ -2475,7 +2501,7 @@
     markLatency('next question ready, speaking now', { question: data.nextQuestion ? data.nextQuestion.slice(0, 40) : '' });
     return askAndListen(data.nextQuestion, data.difficulty, data.questionNumber, data.elapsedMinutes, data.targetMinutes, data.crossDayLink);
   }
-  // ---------- start interview ----------
+
   document.getElementById('startBtn').addEventListener('click', async () => {
     const welcomeWarning = document.getElementById('welcomeWarning');
     welcomeWarning.style.display = 'none';
@@ -2530,7 +2556,7 @@
       btn.disabled = false; btn.textContent = 'Start Your AI Interview →';
     }
   });
-  // ---------- report progress trend ----------
+
   let lastReportWeakTag = '';
   let lastReportWeakBaseline = null;
   async function loadProgressTrend(reportData){
@@ -2569,7 +2595,7 @@
       }
     } catch (e) {}
   }
-  // ---------- skill radar ----------
+
   function renderRadar(skillRadar){
     const svg = document.getElementById('radarSvg');
     const legend = document.getElementById('radarLegend');
@@ -2627,7 +2653,7 @@
       legend.appendChild(span);
     });
   }
-  // ---------- report ----------
+
   async function loadReport(){
     const res = await fetch(apiBase() + '/api/interview/' + sessionId + '/report');
     const data = await res.json();
