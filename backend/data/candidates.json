@@ -1,1 +1,767 @@
-{}
+{
+  "aakashi-thakur": {
+    "name": "Aakashi Thakur",
+    "sessions": [
+      {
+        "sessionId": "demo-seed-aak-1",
+        "topic": "Web Development",
+        "date": "2026-08-01T09:31:28.736Z",
+        "scores": {
+          "hiringProbability": 78,
+          "confidence": 74,
+          "communication": 79,
+          "problemSolving": 76,
+          "competence": 80
+        },
+        "concepts": [
+          {
+            "tag": "JavaScript Fundamentals",
+            "summary": "JavaScript Fundamentals (avg competence 85%, 2 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          },
+          {
+            "tag": "React",
+            "summary": "React (avg competence 85%, 2 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          },
+          {
+            "tag": "CSS",
+            "summary": "CSS (avg competence 85%, 1 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          },
+          {
+            "tag": "Performance",
+            "summary": "Performance (avg competence 60%, 1 question(s))",
+            "avgCompetence": 60,
+            "embedding": null
+          }
+        ],
+        "practiceMode": false,
+        "practiceFocus": null,
+        "report": {
+          "sessionId": "demo-seed-aak-1",
+          "topic": "Web Development",
+          "persona": "friendly",
+          "scores": {
+            "hiringProbability": 78,
+            "confidence": 74,
+            "communication": 79,
+            "problemSolving": 76,
+            "competence": 80
+          },
+          "recommendation": "Hire",
+          "timeline": [
+            {
+              "qNum": 1,
+              "question": "Explain the difference between let, const, and var in JavaScript.",
+              "answer": "Covered scoping and hoisting differences clearly.",
+              "verdict": "correct",
+              "topicTag": "JavaScript Fundamentals",
+              "difficulty": 2,
+              "evidenceFeedback": "Clear, accurate explanation with a good example.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 2,
+              "question": "How does the virtual DOM improve rendering performance in React?",
+              "answer": "Explained diffing and batched updates.",
+              "verdict": "correct",
+              "topicTag": "React",
+              "difficulty": 3,
+              "evidenceFeedback": "Solid understanding of reconciliation.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 3,
+              "question": "What is the CSS box model?",
+              "answer": "Described content, padding, border, margin.",
+              "verdict": "correct",
+              "topicTag": "CSS",
+              "difficulty": 1,
+              "evidenceFeedback": "Textbook-accurate answer.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 4,
+              "question": "How would you optimize a slow-loading web page?",
+              "answer": "Mentioned lazy loading and image compression, missed code splitting.",
+              "verdict": "partial",
+              "topicTag": "Performance",
+              "difficulty": 3,
+              "evidenceFeedback": "Good instincts but missed bundle-level optimizations.",
+              "crossDayLink": false,
+              "nextAction": "Review code-splitting and lazy-loading routes."
+            },
+            {
+              "qNum": 5,
+              "question": "Explain how async/await works under the hood.",
+              "answer": "Connected it correctly to promises and the event loop.",
+              "verdict": "correct",
+              "topicTag": "JavaScript Fundamentals",
+              "difficulty": 3,
+              "evidenceFeedback": "Confident, technically sound answer.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 6,
+              "question": "What are React hooks and why were they introduced?",
+              "answer": "Explained useState/useEffect and functional component motivation.",
+              "verdict": "correct",
+              "topicTag": "React",
+              "difficulty": 2,
+              "evidenceFeedback": "Well-structured explanation.",
+              "crossDayLink": false,
+              "nextAction": null
+            }
+          ],
+          "skillRadar": [
+            {
+              "tag": "JavaScript Fundamentals",
+              "score": 85,
+              "stars": 4.5
+            },
+            {
+              "tag": "React",
+              "score": 85,
+              "stars": 4.5
+            },
+            {
+              "tag": "CSS",
+              "score": 85,
+              "stars": 4.5
+            },
+            {
+              "tag": "Performance",
+              "score": 60,
+              "stars": 3
+            }
+          ],
+          "interviewerNotes": [
+            {
+              "qNum": 1,
+              "note": "Strong on assets, weaker on JS bundle strategy.",
+              "topicTag": "Performance"
+            }
+          ],
+          "crossDayLinksUsed": 0,
+          "dayNumber": 1,
+          "revisionPlan": [
+            {
+              "topic": "Performance",
+              "estimatedMinutes": 15
+            }
+          ],
+          "totalEstimatedMinutes": 15,
+          "practiceMode": false,
+          "practiceResult": null
+        }
+      },
+      {
+        "sessionId": "demo-seed-aak-2",
+        "topic": "Data Structures & Algorithms",
+        "date": "2026-08-04T09:31:28.750Z",
+        "scores": {
+          "hiringProbability": 72,
+          "confidence": 68,
+          "communication": 70,
+          "problemSolving": 74,
+          "competence": 71
+        },
+        "concepts": [
+          {
+            "tag": "hashing",
+            "summary": "hashing (avg competence 48%, 2 question(s))",
+            "avgCompetence": 48,
+            "embedding": null
+          },
+          {
+            "tag": "arrays vs linked lists",
+            "summary": "arrays vs linked lists (avg competence 85%, 1 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          },
+          {
+            "tag": "doubly linked lists",
+            "summary": "doubly linked lists (avg competence 85%, 1 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          },
+          {
+            "tag": "data structures basics",
+            "summary": "data structures basics (avg competence 85%, 1 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          }
+        ],
+        "practiceMode": false,
+        "practiceFocus": null,
+        "report": {
+          "sessionId": "demo-seed-aak-2",
+          "topic": "Data Structures & Algorithms",
+          "persona": "friendly",
+          "scores": {
+            "hiringProbability": 72,
+            "confidence": 68,
+            "communication": 70,
+            "problemSolving": 74,
+            "competence": 71
+          },
+          "recommendation": "Hire",
+          "timeline": [
+            {
+              "qNum": 1,
+              "question": "Explain how a hash table resolves collisions.",
+              "answer": "Mentioned chaining but was fuzzy on open addressing.",
+              "verdict": "partial",
+              "topicTag": "hashing",
+              "difficulty": 3,
+              "evidenceFeedback": "Partial understanding — open addressing wasn’t clear.",
+              "crossDayLink": false,
+              "nextAction": "Revisit open addressing and probing strategies."
+            },
+            {
+              "qNum": 2,
+              "question": "Compare arrays vs linked lists for insertion-heavy workloads.",
+              "answer": "Correctly reasoned about O(1) insertion for linked lists.",
+              "verdict": "correct",
+              "topicTag": "arrays vs linked lists",
+              "difficulty": 2,
+              "evidenceFeedback": "Good trade-off reasoning.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 3,
+              "question": "Reverse a doubly linked list — walk through your approach.",
+              "answer": "Described the pointer-swapping approach accurately.",
+              "verdict": "correct",
+              "topicTag": "doubly linked lists",
+              "difficulty": 3,
+              "evidenceFeedback": "Clean, correct approach.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 4,
+              "question": "What’s the time complexity of your hashing-based solution?",
+              "answer": "Said O(n) but couldn’t justify amortized analysis.",
+              "verdict": "incorrect",
+              "topicTag": "hashing",
+              "difficulty": 4,
+              "evidenceFeedback": "Answer was close but reasoning was incomplete.",
+              "crossDayLink": false,
+              "nextAction": "Practice amortized time-complexity analysis."
+            },
+            {
+              "qNum": 5,
+              "question": "When would you choose a linked list over an array?",
+              "answer": "Gave frequent-insertion/deletion scenario correctly.",
+              "verdict": "correct",
+              "topicTag": "data structures basics",
+              "difficulty": 1,
+              "evidenceFeedback": "Accurate, well-reasoned.",
+              "crossDayLink": false,
+              "nextAction": null
+            }
+          ],
+          "skillRadar": [
+            {
+              "tag": "hashing",
+              "score": 48,
+              "stars": 2.5
+            },
+            {
+              "tag": "arrays vs linked lists",
+              "score": 85,
+              "stars": 4.5
+            },
+            {
+              "tag": "doubly linked lists",
+              "score": 85,
+              "stars": 4.5
+            },
+            {
+              "tag": "data structures basics",
+              "score": 85,
+              "stars": 4.5
+            }
+          ],
+          "interviewerNotes": [
+            {
+              "qNum": 1,
+              "note": "Confused linear probing with chaining.",
+              "topicTag": "hashing"
+            }
+          ],
+          "crossDayLinksUsed": 0,
+          "dayNumber": 1,
+          "revisionPlan": [
+            {
+              "topic": "hashing",
+              "estimatedMinutes": 15
+            }
+          ],
+          "totalEstimatedMinutes": 15,
+          "practiceMode": false,
+          "practiceResult": null
+        }
+      },
+      {
+        "sessionId": "demo-seed-aak-3",
+        "topic": "Behavioral",
+        "date": "2026-08-06T09:31:28.751Z",
+        "scores": {
+          "hiringProbability": 81,
+          "confidence": 83,
+          "communication": 85,
+          "problemSolving": 74,
+          "competence": 78
+        },
+        "concepts": [
+          {
+            "tag": "Communication",
+            "summary": "Communication (avg competence 73%, 2 question(s))",
+            "avgCompetence": 73,
+            "embedding": null
+          },
+          {
+            "tag": "Adaptability",
+            "summary": "Adaptability (avg competence 85%, 1 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          },
+          {
+            "tag": "Growth Mindset",
+            "summary": "Growth Mindset (avg competence 85%, 1 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          }
+        ],
+        "practiceMode": false,
+        "practiceFocus": null,
+        "report": {
+          "sessionId": "demo-seed-aak-3",
+          "topic": "Behavioral",
+          "persona": "friendly",
+          "scores": {
+            "hiringProbability": 81,
+            "confidence": 83,
+            "communication": 85,
+            "problemSolving": 74,
+            "competence": 78
+          },
+          "recommendation": "Strong Hire",
+          "timeline": [
+            {
+              "qNum": 1,
+              "question": "Tell me about a time you disagreed with a teammate.",
+              "answer": "Used a structured STAR-style answer with a clear resolution.",
+              "verdict": "correct",
+              "topicTag": "Communication",
+              "difficulty": 2,
+              "evidenceFeedback": "Well-structured, specific, and reflective.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 2,
+              "question": "Describe a project where you had to learn something new quickly.",
+              "answer": "Gave a concrete example with a clear learning process.",
+              "verdict": "correct",
+              "topicTag": "Adaptability",
+              "difficulty": 2,
+              "evidenceFeedback": "Confident delivery, good specificity.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 3,
+              "question": "How do you handle tight deadlines?",
+              "answer": "Explained prioritization but answer ran long and lost focus.",
+              "verdict": "partial",
+              "topicTag": "Communication",
+              "difficulty": 2,
+              "evidenceFeedback": "Good content, could be more concise.",
+              "crossDayLink": false,
+              "nextAction": "Practice trimming answers to the core STAR points."
+            },
+            {
+              "qNum": 4,
+              "question": "Tell me about a time you received difficult feedback.",
+              "answer": "Reflected maturely and described concrete behavior change.",
+              "verdict": "correct",
+              "topicTag": "Growth Mindset",
+              "difficulty": 2,
+              "evidenceFeedback": "Genuine, self-aware answer.",
+              "crossDayLink": false,
+              "nextAction": null
+            }
+          ],
+          "skillRadar": [
+            {
+              "tag": "Communication",
+              "score": 73,
+              "stars": 3.5
+            },
+            {
+              "tag": "Adaptability",
+              "score": 85,
+              "stars": 4.5
+            },
+            {
+              "tag": "Growth Mindset",
+              "score": 85,
+              "stars": 4.5
+            }
+          ],
+          "interviewerNotes": [
+            {
+              "qNum": 1,
+              "note": "Answer was thorough but over-long — tighten delivery.",
+              "topicTag": "Communication"
+            }
+          ],
+          "crossDayLinksUsed": 0,
+          "dayNumber": 1,
+          "revisionPlan": [
+            {
+              "topic": "Communication",
+              "estimatedMinutes": 15
+            }
+          ],
+          "totalEstimatedMinutes": 15,
+          "practiceMode": false,
+          "practiceResult": null
+        }
+      }
+    ]
+  },
+  "rahul-verma": {
+    "name": "Rahul Verma",
+    "sessions": [
+      {
+        "sessionId": "demo-seed-rah-1",
+        "topic": "Machine Learning Fundamentals",
+        "date": "2026-07-31T09:31:28.753Z",
+        "scores": {
+          "hiringProbability": 58,
+          "confidence": 55,
+          "communication": 61,
+          "problemSolving": 57,
+          "competence": 60
+        },
+        "concepts": [
+          {
+            "tag": "ML Theory",
+            "summary": "ML Theory (avg competence 77%, 3 question(s))",
+            "avgCompetence": 77,
+            "embedding": null
+          },
+          {
+            "tag": "Optimization",
+            "summary": "Optimization (avg competence 60%, 1 question(s))",
+            "avgCompetence": 60,
+            "embedding": null
+          }
+        ],
+        "practiceMode": false,
+        "practiceFocus": null,
+        "report": {
+          "sessionId": "demo-seed-rah-1",
+          "topic": "Machine Learning Fundamentals",
+          "persona": "friendly",
+          "scores": {
+            "hiringProbability": 58,
+            "confidence": 55,
+            "communication": 61,
+            "problemSolving": 57,
+            "competence": 60
+          },
+          "recommendation": "Leaning No Hire",
+          "timeline": [
+            {
+              "qNum": 1,
+              "question": "Explain the bias-variance tradeoff.",
+              "answer": "Got the general idea but mixed up which one overfitting relates to.",
+              "verdict": "partial",
+              "topicTag": "ML Theory",
+              "difficulty": 2,
+              "evidenceFeedback": "Right direction, but the overfitting/underfitting mapping was reversed.",
+              "crossDayLink": false,
+              "nextAction": "Re-derive the bias-variance decomposition with a concrete example."
+            },
+            {
+              "qNum": 2,
+              "question": "What is the difference between supervised and unsupervised learning?",
+              "answer": "Correct, with good examples of each.",
+              "verdict": "correct",
+              "topicTag": "ML Theory",
+              "difficulty": 1,
+              "evidenceFeedback": "Clear and accurate.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 3,
+              "question": "How does gradient descent find a minimum?",
+              "answer": "Described the update rule but was vague on learning rate effects.",
+              "verdict": "partial",
+              "topicTag": "Optimization",
+              "difficulty": 3,
+              "evidenceFeedback": "Core idea was right, but learning-rate intuition was thin.",
+              "crossDayLink": false,
+              "nextAction": "Practice explaining learning-rate too-high/too-low failure modes."
+            },
+            {
+              "qNum": 4,
+              "question": "What is regularization and why do we use it?",
+              "answer": "Explained L2 regularization correctly.",
+              "verdict": "correct",
+              "topicTag": "ML Theory",
+              "difficulty": 2,
+              "evidenceFeedback": "Solid, precise answer.",
+              "crossDayLink": false,
+              "nextAction": null
+            }
+          ],
+          "skillRadar": [
+            {
+              "tag": "ML Theory",
+              "score": 77,
+              "stars": 4
+            },
+            {
+              "tag": "Optimization",
+              "score": 60,
+              "stars": 3
+            }
+          ],
+          "interviewerNotes": [
+            {
+              "qNum": 1,
+              "note": "Mixed up overfitting vs underfitting — worth a focused re-test.",
+              "topicTag": "ML Theory"
+            }
+          ],
+          "crossDayLinksUsed": 0,
+          "dayNumber": 1,
+          "revisionPlan": [
+            {
+              "topic": "ML Theory",
+              "estimatedMinutes": 15
+            },
+            {
+              "topic": "Optimization",
+              "estimatedMinutes": 15
+            }
+          ],
+          "totalEstimatedMinutes": 30,
+          "practiceMode": false,
+          "practiceResult": null
+        }
+      },
+      {
+        "sessionId": "demo-seed-rah-2",
+        "topic": "System Design",
+        "date": "2026-08-03T09:31:28.753Z",
+        "scores": {
+          "hiringProbability": 65,
+          "confidence": 62,
+          "communication": 66,
+          "problemSolving": 68,
+          "competence": 64
+        },
+        "concepts": [
+          {
+            "tag": "System Design Basics",
+            "summary": "System Design Basics (avg competence 60%, 1 question(s))",
+            "avgCompetence": 60,
+            "embedding": null
+          },
+          {
+            "tag": "Scalability",
+            "summary": "Scalability (avg competence 85%, 2 question(s))",
+            "avgCompetence": 85,
+            "embedding": null
+          }
+        ],
+        "practiceMode": false,
+        "practiceFocus": null,
+        "report": {
+          "sessionId": "demo-seed-rah-2",
+          "topic": "System Design",
+          "persona": "friendly",
+          "scores": {
+            "hiringProbability": 65,
+            "confidence": 62,
+            "communication": 66,
+            "problemSolving": 68,
+            "competence": 64
+          },
+          "recommendation": "Hire",
+          "timeline": [
+            {
+              "qNum": 1,
+              "question": "How would you design a URL shortener?",
+              "answer": "Covered hashing and a basic DB schema, missed caching layer.",
+              "verdict": "partial",
+              "topicTag": "System Design Basics",
+              "difficulty": 3,
+              "evidenceFeedback": "Good foundation, but no caching or read-scaling discussion.",
+              "crossDayLink": false,
+              "nextAction": "Practice adding a caching layer (Redis) to reduce DB load."
+            },
+            {
+              "qNum": 2,
+              "question": "What is the difference between horizontal and vertical scaling?",
+              "answer": "Explained both correctly with trade-offs.",
+              "verdict": "correct",
+              "topicTag": "Scalability",
+              "difficulty": 2,
+              "evidenceFeedback": "Clear, well-reasoned comparison.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 3,
+              "question": "How would you handle a sudden traffic spike?",
+              "answer": "Mentioned load balancers and auto-scaling correctly.",
+              "verdict": "correct",
+              "topicTag": "Scalability",
+              "difficulty": 3,
+              "evidenceFeedback": "Confident, accurate answer.",
+              "crossDayLink": false,
+              "nextAction": null
+            }
+          ],
+          "skillRadar": [
+            {
+              "tag": "System Design Basics",
+              "score": 60,
+              "stars": 3
+            },
+            {
+              "tag": "Scalability",
+              "score": 85,
+              "stars": 4.5
+            }
+          ],
+          "interviewerNotes": [
+            {
+              "qNum": 1,
+              "note": "Jumped to implementation before discussing scale requirements.",
+              "topicTag": "System Design Basics"
+            }
+          ],
+          "crossDayLinksUsed": 0,
+          "dayNumber": 1,
+          "revisionPlan": [
+            {
+              "topic": "System Design Basics",
+              "estimatedMinutes": 15
+            }
+          ],
+          "totalEstimatedMinutes": 15,
+          "practiceMode": false,
+          "practiceResult": null
+        }
+      },
+      {
+        "sessionId": "demo-seed-rah-3",
+        "topic": "RAG & AI Agents",
+        "date": "2026-08-07T09:31:28.753Z",
+        "scores": {
+          "hiringProbability": 74,
+          "confidence": 71,
+          "communication": 76,
+          "problemSolving": 73,
+          "competence": 75
+        },
+        "concepts": [
+          {
+            "tag": "RAG Concepts",
+            "summary": "RAG Concepts (avg competence 77%, 3 question(s))",
+            "avgCompetence": 77,
+            "embedding": null
+          }
+        ],
+        "practiceMode": false,
+        "practiceFocus": null,
+        "report": {
+          "sessionId": "demo-seed-rah-3",
+          "topic": "RAG & AI Agents",
+          "persona": "friendly",
+          "scores": {
+            "hiringProbability": 74,
+            "confidence": 71,
+            "communication": 76,
+            "problemSolving": 73,
+            "competence": 75
+          },
+          "recommendation": "Hire",
+          "timeline": [
+            {
+              "qNum": 1,
+              "question": "What problem does Retrieval-Augmented Generation solve?",
+              "answer": "Correctly tied it to reducing hallucination with grounded context.",
+              "verdict": "correct",
+              "topicTag": "RAG Concepts",
+              "difficulty": 2,
+              "evidenceFeedback": "Precise, well-articulated answer.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 2,
+              "question": "How do vector embeddings enable semantic search?",
+              "answer": "Explained embeddings and cosine similarity accurately.",
+              "verdict": "correct",
+              "topicTag": "RAG Concepts",
+              "difficulty": 3,
+              "evidenceFeedback": "Strong technical grasp.",
+              "crossDayLink": false,
+              "nextAction": null
+            },
+            {
+              "qNum": 3,
+              "question": "What are the tradeoffs of chunk size in a RAG pipeline?",
+              "answer": "Partially covered it — mentioned context loss but not retrieval noise.",
+              "verdict": "partial",
+              "topicTag": "RAG Concepts",
+              "difficulty": 4,
+              "evidenceFeedback": "Good start, missed the retrieval-noise side of the tradeoff.",
+              "crossDayLink": false,
+              "nextAction": "Compare small vs large chunk sizes on both recall and precision."
+            }
+          ],
+          "skillRadar": [
+            {
+              "tag": "RAG Concepts",
+              "score": 77,
+              "stars": 4
+            }
+          ],
+          "interviewerNotes": [],
+          "crossDayLinksUsed": 0,
+          "dayNumber": 1,
+          "revisionPlan": [
+            {
+              "topic": "RAG Concepts",
+              "estimatedMinutes": 15
+            }
+          ],
+          "totalEstimatedMinutes": 15,
+          "practiceMode": false,
+          "practiceResult": null
+        }
+      }
+    ]
+  }
+}

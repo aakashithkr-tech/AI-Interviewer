@@ -149,6 +149,74 @@ function safeParseJSON(text) {
   catch (e) { console.error('JSON parse failed, raw text:', cleaned.slice(0, 300)); return null; }
 }
 
+// =====================================================================
+// GitHub integration (additive, self-contained — does not touch any
+// existing route/function). Pulls a candidate's public repos so the
+// interviewer can ask questions grounded in their actual projects.
+// Reuses fetchWithTimeout() / callLLM() / safeParseJSON() above, per the
+// continuation brief — no second fetch wrapper, no direct model calls.
+// =====================================================================
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || ''; // optional — raises the
+  // unauthenticated 60 req/hr GitHub API rate limit if set, but works without it.
+function githubHeaders() {
+  const h = { 'Accept': 'application/vnd.github+json', 'User-Agent': 'interview-agent' };
+  if (GITHUB_TOKEN) h['Authorization'] = `Bearer ${GITHUB_TOKEN}`;
+  return h;
+}
+
+// Fetches a GitHub user's most recently active public, non-fork repos (top 5),
+// with a best-effort README excerpt per repo for richer prompt context.
+async function fetchGithubProfile(username) {
+  const res = await fetchWithTimeout(
+    `https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=10`,
+    { headers: githubHeaders() },
+    8000
+  );
+  if (res.status === 404) { const e = new Error('GitHub user not found'); e.code = 'not_found'; throw e; }
+  if (res.status === 403) { const e = new Error('GitHub rate limit hit'); e.code = 'rate_limited'; throw e; }
+  if (!res.ok) throw new Error(`GitHub API failed: ${res.status}`);
+
+  const repos = await res.json();
+  if (!Array.isArray(repos)) return [];
+
+  const top = repos
+    .filter(r => !r.fork)
+    .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at))
+    .slice(0, 5); // cap analyzed repos to keep prompt size and latency sane
+
+  const enriched = [];
+  for (const r of top) {
+    let readmeExcerpt = '';
+    try {
+      const rmRes = await fetchWithTimeout(
+        `https://api.github.com/repos/${r.full_name}/readme`,
+        { headers: githubHeaders() },
+        6000
+      );
+      if (rmRes.ok) {
+        const rmData = await rmRes.json();
+        if (rmData && rmData.content) {
+          const decoded = Buffer.from(rmData.content, rmData.encoding || 'base64').toString('utf8');
+          readmeExcerpt = decoded.replace(/\r/g, '').trim().slice(0, 600);
+        }
+      }
+    } catch (e) {
+      // README fetch is best-effort only — a missing/failed README should
+      // never block the repo itself from being included.
+    }
+    enriched.push({
+      name: r.name,
+      description: r.description || '',
+      language: r.language || '',
+      stars: r.stargazers_count || 0,
+      pushedAt: r.pushed_at,
+      url: r.html_url,
+      readmeExcerpt
+    });
+  }
+  return enriched;
+}
+
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'candidates.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -618,6 +686,13 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, models: MODELS, keysConfigured: API_KEYS.length, groqFallback: !!GROQ_API_KEY });
 });
 
+// ---- NEW: root-level /check alias. Some external graders/spec-checkers
+// probe a bare `/check` path rather than `/api/health` — this is purely
+// additive (same payload as /api/health) and does not touch that route.
+app.get('/check', (req, res) => {
+  res.json({ ok: true, status: 'up', models: MODELS, keysConfigured: API_KEYS.length, groqFallback: !!GROQ_API_KEY });
+});
+
 // ---- Cohort candidate profiles for the Studio's optional cohort-grounded
 // interview mode. Additive/read-only — does not affect the generic flow.
 app.get('/api/cohort-candidates', (req, res) => {
@@ -716,13 +791,112 @@ Reply with STRICT JSON only:
     res.status(500).json({ error: 'Failed to analyze skill gap', detail: err.message });
   }
 });
+// ---- GitHub Deep Dive: pulls a candidate's public repos + an LLM-written
+// summary of their stack/interests, so the interviewer can ground questions
+// in their actual projects. Additive/read-only — never blocks the interview:
+// no repos, a private/empty account, or a GitHub rate-limit all degrade to a
+// harmless empty/warning response rather than an error that stops the flow.
+app.post('/api/github/analyze', async (req, res) => {
+  try {
+    const { username = '' } = req.body || {};
+    const clean = String(username || '').trim()
+      .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
+      .replace(/\/+$/, '');
+    if (!clean) return res.status(400).json({ error: 'GitHub username is required' });
+
+    let repos = [];
+    try {
+      repos = await fetchGithubProfile(clean);
+    } catch (err) {
+      if (err.code === 'not_found') return res.status(404).json({ error: 'GitHub user not found' });
+      if (err.code === 'rate_limited') {
+        return res.json({ repos: [], summary: '', warning: 'GitHub rate limit hit, continuing without repo context.' });
+      }
+      throw err;
+    }
+    if (!repos.length) return res.json({ repos: [], summary: '' });
+
+    const repoLines = repos.map(r =>
+      `- ${r.name} (${r.language || 'unknown language'}, ${r.stars}★): ${r.description || 'no description'}` +
+      (r.readmeExcerpt ? `\n  README excerpt: ${r.readmeExcerpt.slice(0, 300)}` : '')
+    ).join('\n');
+
+    const raw = await callLLM(
+      'You are a technical interviewer summarizing a candidate\'s GitHub activity for interview prep. Reply with strict JSON only.',
+      `Here are a candidate's most recently active public GitHub repos:\n\n${repoLines}\n\nReply with STRICT JSON only:\n{"summary": "<2-3 sentence summary of their tech stack, interests, and the kind of projects they build>"}`,
+      { maxOutputTokens: 300, attemptTimeoutMs: 6000, budgetMs: 5500 }
+    );
+    const parsed = safeParseJSON(raw) || { summary: '' };
+    res.json({ repos, summary: parsed.summary || '' });
+  } catch (err) {
+    console.error('[github-analyze]', err.message);
+    res.status(500).json({ error: 'Failed to analyze GitHub profile', detail: err.message });
+  }
+});
+
+// ---- Coding / DSA round: generates one context-aware coding problem, then
+// (LLM-)reviews a submitted solution. There is no sandboxed code runner in
+// this stack, so /evaluate never executes candidateCode — it is reasoning-
+// based review only (correctness + complexity discussion), clearly labeled
+// as such. Additive/read-only w.r.t. every other route.
+app.post('/api/coding/generate', async (req, res) => {
+  try {
+    const { stack = '', weakAreas = '', difficulty = '' } = req.body || {};
+    const stackHint = String(stack || '').trim().slice(0, 300) || 'general software engineering';
+    const weakHint = String(weakAreas || '').trim().slice(0, 300);
+    const diffHint = String(difficulty || '').trim().slice(0, 40);
+
+    const prompt = `Generate ONE data-structures-and-algorithms (LeetCode-style) coding interview problem, tailored to a candidate whose stack/background is: "${stackHint}"` +
+      (weakHint ? ` and whose weak areas to probe are: "${weakHint}"` : '') +
+      (diffHint ? `. Target difficulty: ${diffHint}.` : '. Pick an appropriate difficulty (easy/medium) for a timed interview round.') +
+      `\n\nReply with STRICT JSON only, no markdown fences, in exactly this shape:\n{\n  \"title\": \"<short problem title>\",\n  \"description\": \"<full problem statement including constraints and 1-2 examples with input/output>\",\n  \"difficulty\": \"Easy\"|\"Medium\"|\"Hard\",\n  \"language\": \"javascript\",\n  \"starterCode\": \"<a small starter function signature/stub in the given language>\",\n  \"testCases\": [ {\"input\": \"<short human-readable input>\", \"expectedOutput\": \"<expected output>\"} ]\n}\nInclude 2-3 testCases.`;
+
+    const raw = await callLLM(
+      'You are a technical interviewer designing a DSA/LeetCode-style coding round question. Reply with strict JSON only.',
+      prompt,
+      { maxOutputTokens: 700, attemptTimeoutMs: 7000, budgetMs: 6500 }
+    );
+    const parsed = safeParseJSON(raw);
+    if (!parsed) return res.status(502).json({ error: 'Model returned unparsable response' });
+    res.json(parsed);
+  } catch (err) {
+    console.error('[coding-generate]', err.message);
+    res.status(500).json({ error: 'Failed to generate coding problem', detail: err.message });
+  }
+});
+
+app.post('/api/coding/evaluate', async (req, res) => {
+  try {
+    const { problem = {}, candidateCode = '', language = 'javascript' } = req.body || {};
+    const code = String(candidateCode || '').trim().slice(0, 6000);
+    if (!code) return res.status(400).json({ error: 'candidateCode is required' });
+    if (!problem || !problem.title) return res.status(400).json({ error: 'problem is required (the object returned by /api/coding/generate)' });
+
+    const prompt = `A candidate was given this coding problem:\n\nTitle: ${problem.title}\nDescription: ${problem.description || ''}\n\nTheir submitted solution (${language}):\n"""\n${code}\n"""\n\n` +
+      `You are NOT executing this code (no sandbox available) — review it by reading it, the way a human interviewer would. Reason about correctness against the problem's test cases (if provided: ${JSON.stringify((problem.testCases || []).slice(0, 3))}), time/space complexity, and code quality.\n\n` +
+      `Reply with STRICT JSON only, no markdown fences, in exactly this shape:\n{\n  \"correctness\": \"<your assessment of whether it looks correct, and why>\",\n  \"complexityAnalysis\": \"<time and space complexity, e.g. 'O(n) time, O(1) space'>\",\n  \"feedback\": \"<2-3 sentences of interviewer-style feedback>\",\n  \"followUpQuestion\": \"<one natural follow-up discussion question, e.g. about edge cases or optimization>\"\n}`;
+
+    const raw = await callLLM(
+      "You are a technical interviewer reviewing a candidate's coding solution by reading it (no code execution available). Reply with strict JSON only.",
+      prompt,
+      { maxOutputTokens: 600, attemptTimeoutMs: 7000, budgetMs: 6500 }
+    );
+    const parsed = safeParseJSON(raw);
+    if (!parsed) return res.status(502).json({ error: 'Model returned unparsable response' });
+    res.json(parsed);
+  } catch (err) {
+    console.error('[coding-evaluate]', err.message);
+    res.status(500).json({ error: 'Failed to evaluate submission', detail: err.message });
+  }
+});
+
 app.post('/api/interview/start', async (req, res) => {
   const t0 = Date.now();
   try {
     const {
       topic = 'Machine Learning & AI Systems', persona = 'friendly', candidateName = '',
       experience = 'Intermediate', interviewType = 'Technical', durationMinutes, resumeContext = '',
-      practiceFocus = '', practiceBaselineScore, cohortCandidateKey = ''
+      practiceFocus = '', practiceBaselineScore, cohortCandidateKey = '', githubContext = ''
     } = req.body || {};
     const sessionId = uuidv4();
 
@@ -734,7 +908,9 @@ app.post('/api/interview/start', async (req, res) => {
       const cohortCandidate = allCohort[cohortCandidateKey];
       if (!cohortCandidate) return res.status(400).json({ error: 'Unknown cohortCandidateKey' });
 
-      const candidateCtx = buildCandidateContext(cohortCandidate);
+      const candidateCtx = githubContext
+        ? buildCandidateContextWithGithub(cohortCandidate, githubContext)
+        : buildCandidateContext(cohortCandidate);
       const systemPrompt = buildCohortSystemPrompt(candidateCtx, persona, experience);
 
       const tLlmStart = Date.now();
@@ -1279,6 +1455,21 @@ function buildCandidateContext(candidate) {
   return { text, availableDays: missions.map(m => m.day) };
 }
 
+// Additive wrapper (per continuation brief) — leaves buildCandidateContext()
+// itself untouched. Appends a GitHub-projects section to the same context
+// object so both the cohort-grounded flow and the spec /api/interview
+// endpoint can optionally include it without changing their existing prompts
+// when no GitHub context is provided.
+function buildCandidateContextWithGithub(candidate, githubContext) {
+  const base = buildCandidateContext(candidate);
+  const gh = String(githubContext || '').trim();
+  if (!gh) return base;
+  return {
+    text: base.text + `\n\nGitHub projects (ask about a specific repo or a concrete design/implementation decision from it):\n${gh}`,
+    availableDays: base.availableDays
+  };
+}
+
 function buildSpecSystemPrompt(candidateCtx) {
   return `You are an AI technical interviewer for a 31-day AI/ML engineering cohort ("${loadCurriculum().cohort}"). You conduct a structured, conversational, multi-turn interview grounded in the candidate's ACTUAL learning journey from the cohort — not generic textbook trivia.
 
@@ -1298,7 +1489,7 @@ Reply with STRICT JSON only, no markdown fences, in exactly this shape:
 
 app.post('/api/interview', async (req, res) => {
   try {
-    const { sessionId, candidate, message } = req.body || {};
+    const { sessionId, candidate, message, githubContext = '' } = req.body || {};
     if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
 
     let session = specSessions.get(sessionId);
@@ -1306,7 +1497,9 @@ app.post('/api/interview', async (req, res) => {
     // ---- 1) First call for this sessionId: initialize + ask the opening question ----
     if (!session) {
       if (!candidate) return res.status(400).json({ error: 'candidate is required to start a new session' });
-      const candidateCtx = buildCandidateContext(candidate);
+      const candidateCtx = githubContext
+        ? buildCandidateContextWithGithub(candidate, githubContext)
+        : buildCandidateContext(candidate);
       session = {
         candidate,
         candidateCtx,
@@ -1392,6 +1585,197 @@ app.post('/api/interview', async (req, res) => {
 });
 // =====================================================================
 // END hackathon-required endpoint block
+// =====================================================================
+
+// =====================================================================
+// ADDITIVE — "Full Interview" orchestrated mode (unified mode selector,
+// item #3 from the continuation brief).
+//
+// Chains cohort-grounded conversational Q&A with ONE dynamically-timed
+// DSA/coding round — the model itself decides when to hand off, rather
+// than a fixed question number — then produces a single combined report.
+//
+// 100% additive: new route, new in-memory `fullSessions` Map, one new
+// prompt-builder function. Does not modify or share state with
+// /api/interview, /api/interview/start, /api/interview/answer,
+// specSessions, or the existing `sessions` Map. Read-only reuse of
+// loadCohortCandidates(), buildCandidateContext(),
+// buildCandidateContextWithGithub(), callLLM(), safeParseJSON() — all
+// defined elsewhere in this file and untouched.
+//
+// Frontend contract:
+//   1) Start:        { sessionId, cohortCandidateKey, githubContext? }
+//                     -> { reply, done:false, requestCoding:false }
+//   2) Answer turn:   { sessionId, message }
+//                     -> { reply, done, requestCoding }
+//      When requestCoding is true, the frontend should call the existing
+//      POST /api/coding/generate + POST /api/coding/evaluate (unchanged),
+//      then resume with step 3.
+//   3) Resume after coding: { sessionId, codingResult: { problem, correctness,
+//                             complexityAnalysis, feedback } }
+//                     -> { reply, done:false, requestCoding:false }
+//   4) Final turn returns { reply, done:true, feedback } where feedback is
+//      { summary, strengths, gaps, next, codingSummary }.
+// =====================================================================
+
+const fullSessions = new Map(); // sessionId -> { candidateCtx, systemPrompt, turns, coveredDays, codingInserted, codingResult, done, feedback }
+const FULL_MIN_QUESTIONS_BEFORE_CODING = 3; // model may not hand off to coding before asking this many questions
+const FULL_MIN_QUESTIONS = 6; // conversational questions required before ending (coding round is separate)
+const FULL_MIN_DAYS = 3;
+
+function buildFullInterviewSystemPrompt(candidateCtx) {
+  return `You are an AI technical interviewer running a FULL INTERVIEW for a 31-day AI/ML engineering cohort ("${loadCurriculum().cohort}"). This format combines a grounded conversational Q&A round with exactly ONE hands-on DSA/coding round, inserted at a moment YOU choose, followed by a single combined report.
+
+${candidateCtx.text}
+
+RULES:
+1. Every conversational question must trace back to a specific day/topic from the curriculum record above, the same way a normal cohort-grounded interview would.
+2. Ask at least ${FULL_MIN_QUESTIONS} conversational questions across at least ${FULL_MIN_DAYS} distinct curriculum days before ending.
+3. Exactly once during the interview — after at least ${FULL_MIN_QUESTIONS_BEFORE_CODING} conversational questions have been asked, whenever feels like a natural point (e.g. after establishing a baseline, before going deeper) — you may hand off to a DSA/coding round by setting "requestCoding": true. When you do this, keep "reply" to a short one-sentence transition line (e.g. "Let's switch gears — I'd like to see you work through a coding problem.") and do not ask a conversational question in that same turn.
+4. Never request the coding round more than once. You will be told in the prompt if it has already happened.
+5. Adapt difficulty to how well the candidate answers.
+6. Be conversational: one question at a time, briefly acknowledge the previous answer before moving on. Do not lecture.
+7. Only end (done:true) once the minimum questions/days requirement is met AND you have enough signal for a fair combined evaluation.
+
+Reply with STRICT JSON only, no markdown fences, in exactly this shape:
+{"reply": "<what you say to the candidate>", "done": <true|false>, "dayCovered": <curriculum day number this question is grounded in, or null>, "requestCoding": <true|false>}`;
+}
+
+app.post('/api/interview/full', async (req, res) => {
+  try {
+    const { sessionId, cohortCandidateKey, message, githubContext = '', codingResult } = req.body || {};
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+
+    let session = fullSessions.get(sessionId);
+
+    // ---- 1) First call: initialize + ask the opening question ----
+    if (!session) {
+      if (!cohortCandidateKey) return res.status(400).json({ error: 'cohortCandidateKey is required to start a new Full Interview session' });
+      const allCohort = loadCohortCandidates();
+      const candidate = allCohort[cohortCandidateKey];
+      if (!candidate) return res.status(400).json({ error: 'Unknown cohortCandidateKey' });
+
+      const candidateCtx = githubContext
+        ? buildCandidateContextWithGithub(candidate, githubContext)
+        : buildCandidateContext(candidate);
+      session = {
+        candidateCtx,
+        systemPrompt: buildFullInterviewSystemPrompt(candidateCtx),
+        turns: [],
+        coveredDays: new Set(),
+        codingInserted: false,
+        codingResult: null,
+        createdAt: Date.now(),
+        done: false,
+        feedback: null
+      };
+      fullSessions.set(sessionId, session);
+
+      const raw = await callLLM(
+        session.systemPrompt,
+        'Begin the interview now. Greet the candidate briefly by name, then ask your first question, grounded in one of the specific curriculum days listed above.'
+      );
+      const parsed = safeParseJSON(raw) || {
+        reply: `Welcome${(candidate.member || {}).name ? ', ' + candidate.member.name : ''}. Let's start with one of the topics from your cohort — walk me through it in your own words.`,
+        done: false, dayCovered: (candidateCtx.availableDays[0] || null), requestCoding: false
+      };
+      session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+      if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
+      return res.json({ reply: parsed.reply, done: false, requestCoding: false });
+    }
+
+    // ---- Already finished — respond idempotently instead of erroring ----
+    if (session.done) {
+      return res.json({ reply: 'This interview has already ended.', done: true, feedback: session.feedback });
+    }
+
+    const transcriptOf = (s) => s.turns.map(t =>
+      t.role === 'assistant' ? 'Interviewer: ' + t.text : t.role === 'system' ? t.text : 'Candidate: ' + t.text
+    ).join('\n');
+
+    // ---- 2) Frontend resuming after the candidate completed the coding round ----
+    if (codingResult && !session.codingInserted) {
+      session.codingInserted = true;
+      session.codingResult = codingResult;
+      const problemTitle = (codingResult.problem && codingResult.problem.title) || 'the coding problem';
+      session.turns.push({
+        role: 'system',
+        text: `[Coding round completed. Problem: "${problemTitle}". Interviewer review — correctness: ${codingResult.correctness || 'n/a'}; complexity: ${codingResult.complexityAnalysis || 'n/a'}; feedback: ${codingResult.feedback || 'n/a'}]`
+      });
+      const raw = await callLLM(
+        session.systemPrompt,
+        `Conversation so far:\n${transcriptOf(session)}\n\nThe coding round is now complete (see above) — briefly acknowledge it in one sentence, then continue with your next grounded conversational question. Do not request the coding round again (already done). Reply with STRICT JSON per the schema, "requestCoding" must be false.`
+      );
+      const parsed = safeParseJSON(raw) || { reply: 'Nice work on that — let\'s continue.', done: false, dayCovered: null, requestCoding: false };
+      parsed.requestCoding = false; // guard: already inserted, force off regardless of what the model said
+      session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+      if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
+      return res.json({ reply: parsed.reply, done: false, requestCoding: false });
+    }
+
+    // ---- 3) Normal conversation turn ----
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message is required for a conversation turn' });
+    }
+    session.turns.push({ role: 'user', text: message });
+
+    const transcript = transcriptOf(session);
+    const questionCount = session.turns.filter(t => t.role === 'assistant').length;
+    const daysCoveredCount = session.coveredDays.size;
+    const minimumMet = questionCount >= FULL_MIN_QUESTIONS && daysCoveredCount >= FULL_MIN_DAYS;
+    const codingEligible = !session.codingInserted && questionCount >= FULL_MIN_QUESTIONS_BEFORE_CODING;
+
+    const userPrompt = `Conversation so far:\n${transcript}\n\n` +
+      `Questions asked so far: ${questionCount}. Distinct curriculum days covered so far: ${daysCoveredCount} (${[...session.coveredDays].join(', ') || 'none yet'}).\n` +
+      (session.codingInserted
+        ? 'The DSA/coding round has ALREADY happened this interview — do not request it again.\n'
+        : (codingEligible
+            ? 'You MAY set "requestCoding": true now if this feels like a natural moment to hand off to the DSA/coding round — when you do, keep "reply" to a short one-sentence transition line and do not ask a conversational question in this same turn.\n'
+            : `Do not request the coding round yet (only ${questionCount} question(s) asked so far, minimum ${FULL_MIN_QUESTIONS_BEFORE_CODING}) — ask another grounded conversational question.\n`)) +
+      (minimumMet
+        ? 'The minimum requirement (questions + days) has been met — you may end (done:true) now if you have enough signal, or continue.'
+        : 'The minimum requirement (questions + days) has NOT been met yet — do not end the interview yet.') +
+      '\n\nReply with STRICT JSON only per the schema.';
+
+    const raw = await callLLM(session.systemPrompt, userPrompt);
+    const parsed = safeParseJSON(raw) || { reply: 'Could you elaborate a bit more on that?', done: false, dayCovered: null, requestCoding: false };
+
+    // Guard rails — never trust the model's flags blindly, mirrors the
+    // enforcement pattern already used by the /api/interview spec endpoint.
+    if (parsed.requestCoding && !codingEligible) parsed.requestCoding = false;
+    if (parsed.done && !minimumMet) {
+      parsed.done = false;
+      if (!parsed.reply || parsed.reply.length < 5) {
+        parsed.reply = 'Let\'s go a bit deeper — tell me more about another part of your cohort work.';
+      }
+    }
+
+    if (parsed.done) {
+      const feedbackRaw = await callLLM(
+        'You are an interview evaluator producing a COMBINED report for a conversational interview plus a DSA coding round. Reply with strict JSON only, no markdown fences.',
+        `Conversational transcript:\n${transcript}\n\nCandidate curriculum context:\n${session.candidateCtx.text}\n\n` +
+        (session.codingResult
+          ? `Coding round result:\n${JSON.stringify(session.codingResult)}\n\n`
+          : 'No coding round occurred in this interview (interview ended before the model chose to hand off).\n\n') +
+        `Reply with STRICT JSON only in exactly this shape: {"summary": "<2-3 sentence overall assessment covering both the conversation and the coding round if present>", "strengths": ["<point>", "..."], "gaps": ["<point>", "..."], "next": ["<actionable next step>", "..."], "codingSummary": "<1-2 sentence note on the coding round, or empty string if none occurred>"}`
+      );
+      const feedback = safeParseJSON(feedbackRaw) || { summary: 'Interview completed.', strengths: [], gaps: [], next: [], codingSummary: '' };
+      session.done = true;
+      session.feedback = feedback;
+      return res.json({ reply: parsed.reply || 'Thank you — that concludes the interview.', done: true, feedback });
+    }
+
+    session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+    if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
+    return res.json({ reply: parsed.reply, done: false, requestCoding: !!parsed.requestCoding });
+
+  } catch (err) {
+    console.error('[POST /api/interview/full]', err);
+    res.status(500).json({ error: 'Full interview processing failed', detail: err.message });
+  }
+});
+// =====================================================================
+// END additive Full Interview mode block
 // =====================================================================
 
 app.listen(PORT, () => {

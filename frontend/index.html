@@ -605,6 +605,23 @@
   .nav-links button:hover{ color:var(--ink); background:var(--bg-panel); }
   .nav-links button.active{ color:var(--brass); background:var(--brass-dim); }
 
+  /* ===== confirm modal (replaces window.confirm() for exiting the
+     interview — native confirm() dialogs are unreliable in some embedded
+     webviews/browsers, so this guarantees Exit interview always works and
+     also backs the browser back-button handling below) ===== */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(6,8,12,.72); backdrop-filter:blur(2px);
+    display:flex; align-items:center; justify-content:center; z-index:9999;
+  }
+  .modal-box{
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius,14px);
+    padding:28px 30px; max-width:380px; width:calc(100% - 40px);
+    box-shadow:0 20px 60px -20px rgba(0,0,0,.6);
+  }
+  .modal-box p{ color:var(--ink); font-size:15px; line-height:1.5; margin:0 0 20px; }
+  .modal-actions{ display:flex; gap:10px; justify-content:flex-end; }
+  .modal-actions button{ width:auto; }
+
   /* ===== AUTH SCREENS (login / signup) ===== */
   #login, #signup{ align-items:center; justify-content:center; text-align:center; gap:0; min-height:70vh; }
   .auth-card{
@@ -1107,6 +1124,18 @@
     </div>
   </div>
 
+  <!-- confirm modal — used for "Exit interview" and the browser back-button
+       handling below, instead of a native window.confirm() -->
+  <div class="modal-overlay" id="confirmModalOverlay" style="display:none;">
+    <div class="modal-box">
+      <p id="confirmModalText">Exit this interview? Your progress so far will not be scored.</p>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="confirmModalCancel">Cancel</button>
+        <button class="btn-primary" id="confirmModalOk">Exit Interview</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===================== LANDING / HERO ===================== -->
   <div class="screen active" id="landing">
     <div class="hero-grid">
@@ -1328,12 +1357,39 @@
 
     <section class="studio-panel-final studio-subject-panel" id="cohortPanel">
       <div class="studio-panel-head"><div class="section-label">STEP 0 — COHORT-GROUNDED INTERVIEW <span class="optional-tag">recommended</span></div></div>
-      <p class="sub" style="margin:-4px 0 12px;">Pick a candidate's real 31-day AI Cohort progress and the interviewer will ask questions grounded in their actual missions — at least 8 questions across 4+ curriculum days.</p>
+      <p class="sub" style="margin:-4px 0 12px;">Pick a candidate's real 31-day AI Cohort progress and the interviewer will ask questions grounded in their actual missions — at least 8 questions across 4+ curriculum days. Optionally connect a GitHub account so questions reference their actual repos/projects, and add a DSA/LeetCode-style coding round below.</p>
+
+      <label class="jd-label" for="interviewModeSelect">INTERVIEW MODE</label>
+      <select id="interviewModeSelect" class="mono resume-textarea" style="height:auto;padding:12px 14px;margin:8px 0 14px;">
+        <option value="standard" selected>Cohort Technical (standard)</option>
+        <option value="github">GitHub Deep Dive</option>
+        <option value="coding">Coding Round Only</option>
+        <option value="full">Full Interview — conversation + coding round + combined report</option>
+      </select>
+      <div id="interviewModeHint" class="resume-hint" style="margin:-6px 0 14px;display:block;"></div>
+
       <select id="cohortCandidateSelect" class="mono resume-textarea" style="height:auto;padding:12px 14px;">
         <option value="">— No cohort profile (generic topic interview below) —</option>
       </select>
       <div id="cohortCandidateHint" class="resume-hint" style="margin-top:8px;display:none;"></div>
+
+      <div style="margin-top:16px;">
+        <label class="jd-label" for="githubUsernameInput">GITHUB USERNAME <span class="optional-tag">optional — GitHub Deep Dive</span></label>
+        <div class="resume-actions-row" style="margin-top:8px;">
+          <input type="text" id="githubUsernameInput" class="mono resume-textarea" style="height:auto;padding:10px 14px;flex:1;min-width:220px;" placeholder="e.g. octocat" />
+          <button type="button" class="btn-ghost resume-action-btn" id="githubAnalyzeBtn"><span>🐙</span>Analyze GitHub</button>
+        </div>
+        <span id="githubAnalyzeStatus" class="resume-hint" style="display:block;margin-top:6px;">Pulls your public repos so the interviewer can ask about your actual projects.</span>
+        <div id="githubAnalyzeResult" class="skill-gap-result" style="display:none;margin-top:10px;">
+          <div class="plan-card" style="max-width:100%;">
+            <div class="pc-title">GitHub Summary</div>
+            <div id="githubRepoList" style="margin-bottom:8px;"></div>
+            <div id="githubSummaryText" class="skill-gap-summary"></div>
+          </div>
+        </div>
+      </div>
     </section>
+
 
     <section class="studio-panel-final studio-subject-panel" id="genericSubjectSection">
       <div class="studio-panel-head"><div class="section-label">STEP 1 — CHOOSE SUBJECT OR FOCUS AREA</div></div>
@@ -1347,6 +1403,28 @@
       </div>
       <div class="custom-topic-box" id="customTopicBox">
         <div class="field-group"><label for="topicInput">Specify your topic</label><input type="text" id="topicInput" placeholder="e.g. Kubernetes networking, Behavioral leadership, GraphQL…" /></div>
+      </div>
+    </section>
+
+    <!-- ===================== DSA / CODING ROUND (standalone, additive) ===================== -->
+    <section class="studio-panel-final studio-subject-panel" id="codingRoundPanel">
+      <div class="studio-panel-head"><div class="section-label">DSA / LEETCODE-STYLE CODING ROUND <span class="optional-tag">optional</span></div></div>
+      <p class="sub" style="margin:-4px 0 12px;">Generate a context-aware coding problem, write a solution, and get interviewer-style feedback (reasoning-based review — there's no code sandbox in this stack, so code is read and reasoned about, not executed).</p>
+      <button type="button" class="btn-ghost resume-action-btn" id="codingGenerateBtn"><span>🧩</span>Generate coding problem</button>
+      <div id="codingProblemBlock" style="display:none;margin-top:14px;">
+        <div class="plan-card" style="max-width:100%;">
+          <div class="pc-title" id="codingProblemTitle"></div>
+          <div id="codingProblemDifficulty" class="resume-hint" style="margin-bottom:8px;"></div>
+          <pre id="codingProblemDesc" class="mono" style="white-space:pre-wrap;font-size:13px;line-height:1.5;"></pre>
+        </div>
+        <textarea id="codingAnswerArea" class="mono resume-textarea" style="height:220px;margin-top:10px;" spellcheck="false"></textarea>
+        <button type="button" class="btn-ghost resume-action-btn" id="codingSubmitBtn" style="margin-top:8px;"><span>▶</span>Submit solution</button>
+        <div id="codingEvalResult" class="skill-gap-result" style="display:none;margin-top:10px;">
+          <div class="plan-card" style="max-width:100%;">
+            <div class="pc-title">Interviewer Review</div>
+            <div id="codingEvalBody"></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1511,7 +1589,7 @@
           <div class="vital-row"><span class="vlbl">Eye contact</span><div class="vital-track"><div class="vital-fill gaze" id="vfGaze"></div></div><span class="vval" id="vvGaze">—</span></div>
         </div>
 
-        <div class="caption small" style="opacity:.55;">🎙️ Start talking anytime — even mid-question. Say "exit interview" to leave.</div>
+        <div class="caption small" style="opacity:.55;">🎙️ Wait for the question to finish, then answer. Say "exit interview" to leave.</div>
         <button class="mic-btn" id="micBtn">hold mic disabled — auto listening</button>
         <div class="control-row">
           <button class="control-btn" id="doneAnsweringBtn" style="border-color:var(--teal);color:var(--teal);">✅ I'm done — submit now</button>
@@ -1534,6 +1612,47 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ===================== FULL INTERVIEW (mode selector, additive) =====================
+       Standalone text-chat flow for the "Full Interview" mode: conversational
+       Q&A via /api/interview/full, with the model dynamically deciding when to
+       hand off to a DSA/coding round, then a combined report. Does not reuse or
+       modify the voice/camera "room" screen or /report screen above. -->
+  <div class="screen" id="fullInterview">
+    <div class="room-header" id="fullHeader">
+      <div class="rh-left">
+        <span class="rh-title">FULL INTERVIEW</span>
+        <span class="rh-pill" id="fullStatePill">in progress</span>
+      </div>
+      <div class="rh-right"><button class="control-btn exit" id="fullExitBtn">Exit interview</button></div>
+    </div>
+
+    <div class="panel" style="max-width:820px;margin:20px auto;">
+      <h3>Conversation</h3>
+      <div id="fullTranscript" style="max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px;"></div>
+      <div id="fullAnswerRow" style="margin-top:14px;">
+        <textarea id="fullAnswerInput" class="mono resume-textarea" style="height:90px;" placeholder="Type your answer…"></textarea>
+        <button type="button" class="btn-primary" id="fullSendBtn" style="margin-top:8px;width:auto;">Send answer</button>
+      </div>
+    </div>
+
+    <div class="panel" id="fullCodingPanel" style="display:none;max-width:820px;margin:20px auto;">
+      <h3>🧩 Coding Round</h3>
+      <div class="plan-card" style="max-width:100%;">
+        <div class="pc-title" id="fullCodingTitle"></div>
+        <div id="fullCodingDifficulty" class="resume-hint" style="margin-bottom:8px;"></div>
+        <pre id="fullCodingDesc" class="mono" style="white-space:pre-wrap;font-size:13px;line-height:1.5;"></pre>
+      </div>
+      <textarea id="fullCodingAnswer" class="mono resume-textarea" style="height:200px;margin-top:10px;" spellcheck="false"></textarea>
+      <button type="button" class="btn-ghost resume-action-btn" id="fullCodingSubmitBtn" style="margin-top:8px;"><span>▶</span>Submit solution</button>
+    </div>
+
+    <div class="panel" id="fullReportPanel" style="display:none;max-width:820px;margin:20px auto;">
+      <h3>📋 Combined Report</h3>
+      <div id="fullReportBody"></div>
+      <button class="btn-primary" id="fullReportDoneBtn" style="margin-top:14px;width:auto;">Back to dashboard</button>
     </div>
   </div>
 
@@ -1680,6 +1799,7 @@
   let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
   let selectedCohortCandidateKey = ''; // set when the candidate picks a cohort profile in Studio (Step 0)
   let cohortGroundedActive = false; // true for the lifetime of a cohort-grounded interview session
+  let githubContextText = ''; // set by the "Analyze GitHub" button (Step 0) — sent as githubContext on start
 
   // ---------- screens ----------
   const NAV_SCREENS = ['dashboard', 'studio', 'history', 'profile']; // screens that get a navbar link
@@ -1704,6 +1824,61 @@
     loadDashboardData();
     loadMemoryData();
   }
+
+  // ---------- confirm modal (replaces window.confirm — see CSS comment above) ----------
+  function showConfirmModal(message, onConfirm){
+    const overlay = document.getElementById('confirmModalOverlay');
+    document.getElementById('confirmModalText').textContent = message;
+    overlay.style.display = 'flex';
+    const okBtn = document.getElementById('confirmModalOk');
+    const cancelBtn = document.getElementById('confirmModalCancel');
+    function cleanup(){
+      overlay.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+    }
+    function onOk(){ cleanup(); onConfirm(); }
+    function onCancel(){ cleanup(); }
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  }
+
+  // ---------- browser back-button handling ----------
+  // The app has no per-screen URL/history of its own, so the browser's back
+  // button previously did nothing useful while inside a live interview (or
+  // could navigate away from the site entirely) — there was no way to "go
+  // back" out of the room screen except the Exit interview button. This adds
+  // one history entry when the interview room opens, and intercepts the
+  // back button while there so it behaves exactly like tapping "Exit
+  // interview" (with the same confirmation) instead of doing nothing.
+  let roomHistoryPushed = false;
+  function enterRoomHistory(){
+    if (!roomHistoryPushed){
+      history.pushState({ screen: 'room' }, '', location.pathname + location.search);
+      roomHistoryPushed = true;
+    }
+  }
+  function leaveRoomHistory(){
+    roomHistoryPushed = false;
+  }
+  window.addEventListener('popstate', () => {
+    const inRoom = document.getElementById('room').classList.contains('active');
+    if (interviewActive && inRoom){
+      // Re-plant the history entry immediately so the back button doesn't
+      // silently leave the page while the confirmation is up; if the
+      // candidate confirms, the exit flow below moves them to the
+      // dashboard normally (no further history juggling needed).
+      history.pushState({ screen: 'room' }, '', location.pathname + location.search);
+      showConfirmModal('Exit this interview? Your progress so far will not be scored.', () => {
+        stopInterview();
+        setConn('idle', false);
+        document.getElementById('sessionLabel').style.display = 'none';
+        leaveRoomHistory();
+        goToDashboard();
+      });
+    }
+  });
+
   function goToStudio(){ showScreen('studio'); loadCohortCandidateOptions(); }
   function goToHistory(){ showScreen('history'); loadHistoryPage(); }
   function goToProfile(){ showScreen('profile'); loadProfilePage(); }
@@ -1721,23 +1896,48 @@
 
   // ---------- cohort-grounded interview: profile selector (Step 0, optional) ----------
   let cohortCandidateOptionsLoaded = false;
-  async function loadCohortCandidateOptions(){
+  async function loadCohortCandidateOptions(retryCount){
+    retryCount = retryCount || 0;
     if (cohortCandidateOptionsLoaded) return;
     const select = document.getElementById('cohortCandidateSelect');
+    if (!select) return;
+    const defaultOpt = select.querySelector('option[value=""]');
+    if (defaultOpt && retryCount === 0) defaultOpt.textContent = 'Loading cohort candidates…';
     try {
       const res = await fetch(apiBase() + '/api/cohort-candidates');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const list = await res.json();
+      // Clear any options added by a previous attempt before re-populating.
+      select.querySelectorAll('option[data-cohort-opt]').forEach(o => o.remove());
       list.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.key;
+        opt.dataset.cohortOpt = '1';
         opt.textContent = c.name + (c.jobRole ? ' — ' + c.jobRole : '') + ' (' + c.missionsCompleted + ' missions)';
         select.appendChild(opt);
       });
+      if (defaultOpt) defaultOpt.textContent = list.length
+        ? '— No cohort profile (generic topic interview below) —'
+        : 'No cohort candidates found on the server';
       cohortCandidateOptionsLoaded = true;
     } catch (e) {
       console.warn('Could not load cohort candidates', e);
+      // Render free-tier cold starts can take 30-50s, not just a few
+      // seconds — retry with backoff (3s,6s,10s,15s,20s ≈ 54s covered)
+      // instead of giving up after ~9s and leaving the dropdown empty.
+      if (defaultOpt) defaultOpt.textContent = 'Server waking up… retrying (' + (retryCount + 1) + ')';
+      if (retryCount < 5) {
+        const delays = [3000, 6000, 10000, 15000, 20000];
+        setTimeout(() => loadCohortCandidateOptions(retryCount + 1), delays[retryCount] || 20000);
+      } else if (defaultOpt) {
+        defaultOpt.textContent = 'Could not load cohort candidates — retry from Studio';
+      }
     }
   }
+  // Eager-load as soon as the page boots (not only when the user navigates
+  // to Studio) so the dropdown is already populated by the time anyone —
+  // including an automated crawler/screenshot — reaches Step 0.
+  loadCohortCandidateOptions();
   const genericSubjectSection = document.getElementById('genericSubjectSection');
   document.getElementById('cohortCandidateSelect').addEventListener('change', (e) => {
     selectedCohortCandidateKey = e.target.value || '';
@@ -1791,12 +1991,13 @@
   });
 
   document.getElementById('exitBtn').addEventListener('click', () => {
-    const ok = window.confirm('Exit this interview? Your progress so far will not be scored.');
-    if (!ok) return;
-    stopInterview();
-    setConn('idle', false);
-    document.getElementById('sessionLabel').style.display = 'none';
-    goToDashboard();
+    showConfirmModal('Exit this interview? Your progress so far will not be scored.', () => {
+      stopInterview();
+      setConn('idle', false);
+      document.getElementById('sessionLabel').style.display = 'none';
+      leaveRoomHistory();
+      goToDashboard();
+    });
   });
 
   // ---------- login ----------
@@ -2252,6 +2453,334 @@
       }
     });
   }
+
+  // ---------- GitHub Deep Dive: analyze button (Studio Step 0, optional) ----------
+  const githubAnalyzeBtn = document.getElementById('githubAnalyzeBtn');
+  const githubAnalyzeStatus = document.getElementById('githubAnalyzeStatus');
+  const githubAnalyzeResult = document.getElementById('githubAnalyzeResult');
+  const githubRepoList = document.getElementById('githubRepoList');
+  const githubSummaryText = document.getElementById('githubSummaryText');
+  if (githubAnalyzeBtn) {
+    githubAnalyzeBtn.addEventListener('click', async () => {
+      const username = document.getElementById('githubUsernameInput').value.trim();
+      if (!username) {
+        githubAnalyzeStatus.textContent = 'Enter a GitHub username first.';
+        return;
+      }
+      githubAnalyzeStatus.textContent = 'Analyzing…';
+      githubAnalyzeResult.style.display = 'none';
+      githubContextText = '';
+      try {
+        const res = await fetch(apiBase() + '/api/github/analyze', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'failed to analyze');
+        if (data.warning) {
+          githubAnalyzeStatus.textContent = data.warning;
+          return;
+        }
+        if (!data.repos || !data.repos.length) {
+          githubAnalyzeStatus.textContent = 'No public repos found for that username — continuing without GitHub context.';
+          return;
+        }
+        githubRepoList.innerHTML = data.repos.map(r =>
+          '<div class="pc-row"><span>' + r.name + (r.language ? ' <span style="color:var(--ink-faint);">(' + r.language + ')</span>' : '') + '</span><b>' + (r.stars || 0) + '★</b></div>'
+        ).join('');
+        githubSummaryText.textContent = data.summary || '';
+        githubAnalyzeResult.style.display = 'block';
+        // Build the plain-text block sent to the backend as githubContext —
+        // the interviewer prompt reads this the same shape as the repoLines
+        // the analyze endpoint itself builds server-side.
+        githubContextText = data.repos.map(r =>
+          '- ' + r.name + ' (' + (r.language || 'unknown language') + ', ' + (r.stars || 0) + '★): ' + (r.description || 'no description')
+        ).join('\n') + (data.summary ? ('\nSummary: ' + data.summary) : '');
+        githubAnalyzeStatus.textContent = '✅ Analyzed ' + data.repos.length + ' repo' + (data.repos.length === 1 ? '' : 's') + '.';
+      } catch (e) {
+        githubAnalyzeStatus.textContent = 'Could not analyze (' + e.message + ').';
+      }
+    });
+  }
+
+  // ---------- DSA / Coding round: generate + submit (Studio, optional, standalone) ----------
+  let currentCodingProblem = null;
+  const codingGenerateBtn = document.getElementById('codingGenerateBtn');
+  const codingProblemBlock = document.getElementById('codingProblemBlock');
+  const codingSubmitBtn = document.getElementById('codingSubmitBtn');
+  const codingEvalResult = document.getElementById('codingEvalResult');
+  const codingEvalBody = document.getElementById('codingEvalBody');
+  if (codingGenerateBtn) {
+    codingGenerateBtn.addEventListener('click', async () => {
+      codingGenerateBtn.disabled = true;
+      codingGenerateBtn.textContent = 'Generating…';
+      codingEvalResult.style.display = 'none';
+      try {
+        const stack = (document.getElementById('topicInput') || {}).value || 'general software engineering';
+        const res = await fetch(apiBase() + '/api/coding/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stack, weakAreas: '' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'failed to generate problem');
+        currentCodingProblem = data;
+        document.getElementById('codingProblemTitle').textContent = data.title || 'Coding Problem';
+        document.getElementById('codingProblemDifficulty').textContent = (data.difficulty || '') + ' · ' + (data.language || 'javascript');
+        document.getElementById('codingProblemDesc').textContent = data.description || '';
+        document.getElementById('codingAnswerArea').value = data.starterCode || '';
+        codingProblemBlock.style.display = 'block';
+      } catch (e) {
+        alert('Could not generate a coding problem (' + e.message + '). Try again.');
+      } finally {
+        codingGenerateBtn.disabled = false;
+        codingGenerateBtn.innerHTML = '<span>🧩</span>Generate coding problem';
+      }
+    });
+  }
+  if (codingSubmitBtn) {
+    codingSubmitBtn.addEventListener('click', async () => {
+      if (!currentCodingProblem) return;
+      const candidateCode = document.getElementById('codingAnswerArea').value;
+      if (!candidateCode.trim()) { alert('Write a solution first.'); return; }
+      codingSubmitBtn.disabled = true;
+      codingSubmitBtn.textContent = 'Reviewing…';
+      try {
+        const res = await fetch(apiBase() + '/api/coding/evaluate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ problem: currentCodingProblem, candidateCode, language: currentCodingProblem.language || 'javascript' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'failed to evaluate');
+        codingEvalBody.innerHTML =
+          '<div class="pc-row"><b>Correctness</b></div><div class="resume-hint" style="display:block;margin-bottom:8px;">' + (data.correctness || '') + '</div>' +
+          '<div class="pc-row"><b>Complexity</b></div><div class="resume-hint" style="display:block;margin-bottom:8px;">' + (data.complexityAnalysis || '') + '</div>' +
+          '<div class="pc-row"><b>Feedback</b></div><div class="resume-hint" style="display:block;margin-bottom:8px;">' + (data.feedback || '') + '</div>' +
+          (data.followUpQuestion ? '<div class="pc-row"><b>Follow-up</b></div><div class="resume-hint" style="display:block;">' + data.followUpQuestion + '</div>' : '');
+        codingEvalResult.style.display = 'block';
+      } catch (e) {
+        alert('Could not evaluate submission (' + e.message + ').');
+      } finally {
+        codingSubmitBtn.disabled = false;
+        codingSubmitBtn.innerHTML = '<span>▶</span>Submit solution';
+      }
+    });
+  }
+
+  // ---------- Interview mode selector (additive) ----------
+  // Purely a Studio-UI concern: shows/hides existing sections and, for
+  // 'coding' / 'full', intercepts the existing #startBtn click (via a
+  // capture-phase listener registered further below) instead of touching
+  // its original bubble-phase handler. 'standard' and 'github' modes are
+  // untouched — GitHub Deep Dive is already just "fill in both Step 0
+  // fields", so it needs no special handling beyond the hint text.
+  (function setupInterviewModeSelector(){
+    const modeSelect = document.getElementById('interviewModeSelect');
+    const modeHint = document.getElementById('interviewModeHint');
+    const codingPanel = document.getElementById('codingRoundPanel');
+    const genericSubject = document.getElementById('genericSubjectSection');
+    if (!modeSelect) return;
+    const HINTS = {
+      standard: 'Standard flow — pick a cohort profile above (or leave it blank for a generic topic interview) and press Start.',
+      github: 'Same as Cohort Technical, plus: enter a GitHub username and click "Analyze GitHub" above so questions reference real repos/projects.',
+      coding: 'Skips the conversational interview — generate a DSA/LeetCode-style problem below, write a solution, and get an interviewer-style review.',
+      full: 'Full flow: a grounded conversation where the interviewer decides when to insert one DSA/coding round, then a single combined report. Requires a cohort profile selected above.'
+    };
+    function applyMode(){
+      const mode = modeSelect.value;
+      modeHint.textContent = HINTS[mode] || '';
+      const isCoding = mode === 'coding';
+      const isFull = mode === 'full';
+      // "Coding Round Only": the subject picker is irrelevant.
+      if (genericSubject) {
+        genericSubject.style.opacity = isCoding || isFull ? '0.4' : '';
+        genericSubject.style.pointerEvents = isCoding || isFull ? 'none' : '';
+      }
+      // "Full Interview": the standalone coding panel is now embedded in
+      // the orchestrated flow instead of being triggered manually.
+      if (codingPanel) codingPanel.style.display = isFull ? 'none' : '';
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) {
+        startBtn.textContent = isCoding ? 'Go to Coding Round ↓'
+          : isFull ? 'Start Full Interview →'
+          : 'Start Your AI Interview →';
+      }
+    }
+    modeSelect.addEventListener('change', applyMode);
+    applyMode();
+  })();
+
+  // ---------- Full Interview mode: state + chat loop (additive) ----------
+  let fullSessionId = null;
+  let fullCurrentCodingProblem = null;
+
+  function fullAppendMessage(role, text){
+    const el = document.createElement('div');
+    el.style.cssText = 'padding:10px 14px;border-radius:10px;max-width:85%;white-space:pre-wrap;' +
+      (role === 'assistant' ? 'align-self:flex-start;background:rgba(255,255,255,0.06);' : 'align-self:flex-end;background:rgba(45,212,191,0.15);');
+    el.textContent = text;
+    document.getElementById('fullTranscript').appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }
+
+  async function startFullInterview(){
+    if (!selectedCohortCandidateKey){
+      alert('Full Interview mode needs a cohort profile selected in Step 0 above — pick one first.');
+      return;
+    }
+    fullSessionId = 'full_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    fullCurrentCodingProblem = null;
+    document.getElementById('fullTranscript').innerHTML = '';
+    document.getElementById('fullCodingPanel').style.display = 'none';
+    document.getElementById('fullReportPanel').style.display = 'none';
+    document.getElementById('fullAnswerRow').style.display = 'block';
+    document.getElementById('fullStatePill').textContent = 'in progress';
+    showScreen('fullInterview');
+    fullAppendMessage('assistant', 'Connecting…');
+    try {
+      const res = await fetch(apiBase() + '/api/interview/full', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: fullSessionId, cohortCandidateKey: selectedCohortCandidateKey, githubContext: githubContextText || undefined })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed to start');
+      document.getElementById('fullTranscript').innerHTML = '';
+      fullAppendMessage('assistant', data.reply);
+    } catch (e) {
+      document.getElementById('fullTranscript').innerHTML = '';
+      fullAppendMessage('assistant', 'Could not start the interview (' + e.message + '). Go back to Studio and try again.');
+    }
+  }
+
+  async function fullSendTurn(message, codingResult){
+    try {
+      const res = await fetch(apiBase() + '/api/interview/full', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: fullSessionId, message: message || undefined, codingResult: codingResult || undefined })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'turn failed');
+      fullAppendMessage('assistant', data.reply);
+      if (data.done){
+        document.getElementById('fullStatePill').textContent = 'complete';
+        fullShowReport(data.feedback);
+        return;
+      }
+      if (data.requestCoding) await fullLoadCodingRound();
+    } catch (e) {
+      fullAppendMessage('assistant', 'Something went wrong (' + e.message + '). You can try answering again.');
+    }
+  }
+
+  async function fullLoadCodingRound(){
+    document.getElementById('fullAnswerRow').style.display = 'none';
+    const panel = document.getElementById('fullCodingPanel');
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('fullCodingTitle').textContent = 'Generating problem…';
+    document.getElementById('fullCodingDifficulty').textContent = '';
+    document.getElementById('fullCodingDesc').textContent = '';
+    try {
+      const stack = (document.getElementById('topicInput') || {}).value || 'general software engineering';
+      const res = await fetch(apiBase() + '/api/coding/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stack })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed to generate problem');
+      fullCurrentCodingProblem = data;
+      document.getElementById('fullCodingTitle').textContent = data.title || 'Coding Problem';
+      document.getElementById('fullCodingDifficulty').textContent = (data.difficulty || '') + ' · ' + (data.language || 'javascript');
+      document.getElementById('fullCodingDesc').textContent = data.description || '';
+      document.getElementById('fullCodingAnswer').value = data.starterCode || '';
+    } catch (e) {
+      document.getElementById('fullCodingTitle').textContent = 'Could not generate a problem (' + e.message + ')';
+    }
+  }
+
+  const fullCodingSubmitBtn = document.getElementById('fullCodingSubmitBtn');
+  if (fullCodingSubmitBtn) {
+    fullCodingSubmitBtn.addEventListener('click', async () => {
+      if (!fullCurrentCodingProblem) return;
+      const candidateCode = document.getElementById('fullCodingAnswer').value;
+      if (!candidateCode.trim()) { alert('Write a solution first.'); return; }
+      fullCodingSubmitBtn.disabled = true;
+      fullCodingSubmitBtn.textContent = 'Reviewing…';
+      try {
+        const res = await fetch(apiBase() + '/api/coding/evaluate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ problem: fullCurrentCodingProblem, candidateCode, language: fullCurrentCodingProblem.language || 'javascript' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'failed to evaluate');
+        document.getElementById('fullCodingPanel').style.display = 'none';
+        document.getElementById('fullAnswerRow').style.display = 'block';
+        fullAppendMessage('user', '[Submitted coding solution — see interviewer feedback next]');
+        await fullSendTurn(null, {
+          problem: { title: fullCurrentCodingProblem.title },
+          correctness: data.correctness, complexityAnalysis: data.complexityAnalysis, feedback: data.feedback
+        });
+      } catch (e) {
+        alert('Could not evaluate submission (' + e.message + ').');
+      } finally {
+        fullCodingSubmitBtn.disabled = false;
+        fullCodingSubmitBtn.innerHTML = '<span>▶</span>Submit solution';
+      }
+    });
+  }
+
+  const fullSendBtn = document.getElementById('fullSendBtn');
+  if (fullSendBtn) {
+    fullSendBtn.addEventListener('click', () => {
+      const input = document.getElementById('fullAnswerInput');
+      const val = input.value.trim();
+      if (!val) return;
+      fullAppendMessage('user', val);
+      input.value = '';
+      fullSendTurn(val);
+    });
+  }
+
+  function fullShowReport(feedback){
+    document.getElementById('fullAnswerRow').style.display = 'none';
+    document.getElementById('fullCodingPanel').style.display = 'none';
+    const body = document.getElementById('fullReportBody');
+    const f = feedback || {};
+    const li = (arr) => (arr || []).map(s => '<li>' + s + '</li>').join('');
+    body.innerHTML =
+      '<div class="pc-row"><b>Summary</b></div><div class="resume-hint" style="display:block;margin-bottom:10px;">' + (f.summary || '') + '</div>' +
+      (f.codingSummary ? '<div class="pc-row"><b>Coding round</b></div><div class="resume-hint" style="display:block;margin-bottom:10px;">' + f.codingSummary + '</div>' : '') +
+      '<div class="pc-row"><b>Strengths</b></div><ul>' + li(f.strengths) + '</ul>' +
+      '<div class="pc-row"><b>Gaps</b></div><ul>' + li(f.gaps) + '</ul>' +
+      '<div class="pc-row"><b>Next steps</b></div><ul>' + li(f.next) + '</ul>';
+    document.getElementById('fullReportPanel').style.display = 'block';
+  }
+
+  const fullReportDoneBtn = document.getElementById('fullReportDoneBtn');
+  if (fullReportDoneBtn) fullReportDoneBtn.addEventListener('click', () => { goToDashboard(); });
+  const fullExitBtn = document.getElementById('fullExitBtn');
+  if (fullExitBtn) fullExitBtn.addEventListener('click', () => {
+    if (confirm('Exit the interview? Progress in this session will be lost.')) goToDashboard();
+  });
+
+  // Intercepts #startBtn in capture phase (fires before the existing
+  // bubble-phase handler below, regardless of registration order) so
+  // 'coding' and 'full' modes never reach the original standard-interview
+  // logic. 'standard' and 'github' fall through untouched.
+  document.getElementById('startBtn').addEventListener('click', function(e){
+    const mode = (document.getElementById('interviewModeSelect') || {}).value || 'standard';
+    if (mode === 'coding') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      document.getElementById('codingRoundPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const btn = document.getElementById('codingGenerateBtn');
+      if (btn) btn.focus();
+      return;
+    }
+    if (mode === 'full') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      startFullInterview();
+      return;
+    }
+  }, true);
 
   if (pasteClipboardBtn) {
     pasteClipboardBtn.addEventListener('click', async () => {
@@ -2949,34 +3478,29 @@
     lastDifficultyLevel = difficulty;
     setFeedback('');
     setCaption(questionText);
-    setInterviewState('speaking', 'AI Speaking');
-    setOrb('ai-speaking', 'interviewer speaking — jump in anytime');
     document.getElementById('crossDayBadge').classList.toggle('show', !!crossDayLink);
     poseSamples = [];
     markLatency('askAndListen start Q' + qNum);
 
     let aiSpeaking = true;
-    speak(questionText).then(() => {
-      aiSpeaking = false;
-      if (interviewActive){
-        setInterviewState('listening', 'Listening');
-        setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
-      }
-    });
+    setInterviewState('speaking', 'AI Speaking');
+    setOrb('ai-speaking', 'interviewer speaking…');
+    await speak(questionText);
+    aiSpeaking = false;
+    if (!interviewActive) return;
+    setInterviewState('listening', 'Listening');
+    setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
 
+    // The mic is intentionally NOT started until the question has fully
+    // finished playing (above). Starting it in parallel with the TTS audio
+    // (the previous "barge-in" behavior) meant the microphone often picked
+    // up the interviewer's own voice through the speakers and mistook it for
+    // the candidate's answer — that's what was showing up as the AI's own
+    // question text appearing as the transcribed "answer". Waiting for
+    // speak() to resolve first eliminates that overlap entirely.
     let answer = '';
     try {
-      answer = await listenWithBargeIn(
-        () => aiSpeaking,
-        () => {
-          aiSpeaking = false;
-          skipVoiceover();
-          if (interviewActive){
-            setInterviewState('listening', 'Listening');
-            setOrb('listening', 'listening — Q' + qNum + ' · ' + (elapsedMinutes||0).toFixed(1) + '/' + targetMinutes + ' min');
-          }
-        }
-      );
+      answer = await listenWithBargeIn(() => false, () => {});
     } catch (e) {
       if (!interviewActive) return;
       setFeedback('Could not capture audio — check mic permissions, then tap the mic button below to retry this question.');
@@ -3084,7 +3608,8 @@
           resumeContext: document.getElementById('resumeInput').value.trim(),
           practiceFocus: practiceFocus || undefined,
           practiceBaselineScore: typeof practiceBaselineScore === 'number' ? practiceBaselineScore : undefined,
-          cohortCandidateKey: selectedCohortCandidateKey || undefined
+          cohortCandidateKey: selectedCohortCandidateKey || undefined,
+          githubContext: githubContextText || undefined
         })
       });
       const data = await res.json();
@@ -3110,6 +3635,7 @@
       document.getElementById('timeline').innerHTML = '';
       resetEvidencePanel();
       showScreen('room');
+      enterRoomHistory();
       if (cameraEnabled) startPostureTracking();
       // Practice mode is one-shot per interview — clear it now that the
       // session has actually started, so the next interview defaults back
@@ -3334,6 +3860,7 @@
 
     stopPostureTracking();
     stopRoomTimer();
+    leaveRoomHistory();
     showScreen('report');
     setConn('report ready', true);
     loadProgressTrend(data);
@@ -3344,6 +3871,7 @@
     stopInterview();
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
+    leaveRoomHistory();
     goToDashboard();
   });
 
