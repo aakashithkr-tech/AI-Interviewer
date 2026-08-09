@@ -1111,6 +1111,7 @@
     <nav class="nav-links" id="navLinks" style="display:none;">
       <button type="button" data-nav="dashboard">Dashboard</button>
       <button type="button" data-nav="studio">Interview Studio</button>
+      <button type="button" data-nav="coding">Coding Round</button>
       <button type="button" data-nav="history">History</button>
       <button type="button" data-nav="profile">Profile</button>
     </nav>
@@ -1368,7 +1369,8 @@
       </select>
       <div id="interviewModeHint" class="resume-hint" style="margin:-6px 0 14px;display:block;"></div>
 
-      <select id="cohortCandidateSelect" class="mono resume-textarea" style="height:auto;padding:12px 14px;">
+      <label class="jd-label" for="cohortCandidateSelect">COHORT CANDIDATE</label>
+      <select id="cohortCandidateSelect" class="mono resume-textarea" style="height:auto;padding:12px 14px;margin-top:8px;">
         <option value="">— No cohort profile (generic topic interview below) —</option>
       </select>
       <div id="cohortCandidateHint" class="resume-hint" style="margin-top:8px;display:none;"></div>
@@ -1591,6 +1593,14 @@
 
         <div class="caption small" style="opacity:.55;">🎙️ Wait for the question to finish, then answer. Say "exit interview" to leave.</div>
         <button class="mic-btn" id="micBtn">hold mic disabled — auto listening</button>
+        <!-- ADDITIVE: typed-answer fallback for when mic/voice isn't available
+             (unsupported browser, denied permission, noisy room). Always
+             offered, not just on error, so no candidate gets stuck. -->
+        <button type="button" class="control-btn" id="typeInsteadBtn" style="margin-top:8px;">⌨️ Type answer instead</button>
+        <div id="typeAnswerRow" style="display:none;margin-top:10px;width:100%;max-width:520px;">
+          <textarea id="typeAnswerInput" class="mono resume-textarea" style="height:80px;" placeholder="Type your answer here…"></textarea>
+          <button type="button" class="btn-primary" id="typeAnswerSendBtn" style="margin-top:8px;width:auto;">Send typed answer</button>
+        </div>
         <div class="control-row">
           <button class="control-btn" id="doneAnsweringBtn" style="border-color:var(--teal);color:var(--teal);">✅ I'm done — submit now</button>
           <button class="control-btn" id="skipBtn">⏭ Skip voiceover</button>
@@ -1795,6 +1805,11 @@
   let replayIndex = 0;
   let replayPlaying = false;
   let manualStopRequested = false; // set true only by the "I'm done" button — the one explicit way to finalize an answer
+  // ADDITIVE: typed-answer fallback state. When set, this is the resolve()
+  // function of whichever promise askAndListen is currently waiting on for
+  // an answer — either the always-visible "type instead" race, or the
+  // mic-error recovery wait. Submitting typed text calls this directly.
+  let typeAnswerResolver = null;
   let practiceFocus = null; // set when the candidate enters practice mode via a weakness "Practice" button
   let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
   let selectedCohortCandidateKey = ''; // set when the candidate picks a cohort profile in Studio (Step 0)
@@ -1882,11 +1897,33 @@
   function goToStudio(){ showScreen('studio'); loadCohortCandidateOptions(); }
   function goToHistory(){ showScreen('history'); loadHistoryPage(); }
   function goToProfile(){ showScreen('profile'); loadProfilePage(); }
+  // ADDITIVE: dedicated "Coding Round" nav entry. There's no separate
+  // screen for this (the working coding panel already lives inside
+  // Studio, and duplicating it into its own screen risked breaking the
+  // working flow under time pressure) — instead this jumps straight to
+  // Studio, pre-selects "Coding Round Only" mode, and scrolls/focuses the
+  // panel, so it behaves like a dedicated page from the user's side.
+  function goToCodingRound(){
+    showScreen('studio');
+    loadCohortCandidateOptions();
+    const modeSelect = document.getElementById('interviewModeSelect');
+    if (modeSelect) {
+      modeSelect.value = 'coding';
+      modeSelect.dispatchEvent(new Event('change'));
+    }
+    setTimeout(() => {
+      const panel = document.getElementById('codingRoundPanel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const btn = document.getElementById('codingGenerateBtn');
+      if (btn) btn.focus();
+    }, 50);
+  }
   document.querySelectorAll('#navLinks button').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.nav;
       if (target === 'dashboard') goToDashboard();
       else if (target === 'studio') goToStudio();
+      else if (target === 'coding') goToCodingRound();
       else if (target === 'history') goToHistory();
       else if (target === 'profile') goToProfile();
     });
@@ -1919,6 +1956,8 @@
       if (defaultOpt) defaultOpt.textContent = list.length
         ? '— No cohort profile (generic topic interview below) —'
         : 'No cohort candidates found on the server';
+      lastLoadedCohortList = list;
+      autoSelectCohortByName();
       cohortCandidateOptionsLoaded = true;
     } catch (e) {
       console.warn('Could not load cohort candidates', e);
@@ -1937,6 +1976,23 @@
   // Eager-load as soon as the page boots (not only when the user navigates
   // to Studio) so the dropdown is already populated by the time anyone —
   // including an automated crawler/screenshot — reaches Step 0.
+  let lastLoadedCohortList = [];
+  // ADDITIVE: if the logged-in user's name matches a cohort candidate
+  // (e.g. Aakashi Thakur logs in and "Aakashi Thakur" is in the cohort
+  // list), auto-select that profile instead of defaulting to "No cohort
+  // profile" — only if the user hasn't already picked something
+  // themselves. Called both after the candidate list first loads and
+  // right after login, so it works whether login or the list finishes
+  // loading first.
+  function autoSelectCohortByName(){
+    if (selectedCohortCandidateKey || !userName || !lastLoadedCohortList.length) return;
+    const match = lastLoadedCohortList.find(c => (c.name || '').trim().toLowerCase() === userName.trim().toLowerCase());
+    if (!match) return;
+    const select = document.getElementById('cohortCandidateSelect');
+    if (!select) return;
+    select.value = match.key;
+    select.dispatchEvent(new Event('change'));
+  }
   loadCohortCandidateOptions();
   const genericSubjectSection = document.getElementById('genericSubjectSection');
   document.getElementById('cohortCandidateSelect').addEventListener('change', (e) => {
@@ -2017,6 +2073,7 @@
       setLoggedInUI();
       goToDashboard();
       warmUpBackend();
+      autoSelectCohortByName();
     }
   }
   function completeLogin(name){
@@ -2026,6 +2083,7 @@
     setLoggedInUI();
     goToDashboard();
     warmUpBackend();
+    autoSelectCohortByName();
   }
   document.getElementById('continueBtn').addEventListener('click', () => {
     const name = document.getElementById('loginNameInput').value.trim();
@@ -3291,9 +3349,18 @@
   });
 
   // ---------- STT (simple, used for the exit-confirmation prompt) ----------
+  // FIX: this used to have no silence detection and no timeout, so
+  // continuous-mode recognition would just sit there after the candidate
+  // said "yes" — the browser doesn't auto-stop on its own, so the promise
+  // never resolved and the UI stayed stuck on "Listening" forever. It now
+  // stops itself shortly after speech goes quiet, and always resolves
+  // (never hangs) via a hard timeout as a safety net.
   function listenOnce(){
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
+      const SILENCE_GRACE_MS = 900;   // short pause after speech = they're done answering yes/no
+      const HARD_TIMEOUT_MS = 12000;  // absolute safety cap so this can never hang indefinitely
+
       recognition = new SpeechRecognition();
       recognition.lang = 'en-IN';
       recognition.interimResults = true;
@@ -3301,6 +3368,20 @@
       recognition.maxAlternatives = 1;
 
       let finalTranscript = '';
+      let settled = false;
+      let silenceTimer = null;
+      let hardTimer = null;
+
+      function stopNow(){
+        if (silenceTimer) clearTimeout(silenceTimer);
+        if (hardTimer) clearTimeout(hardTimer);
+        try { recognition.stop(); } catch (e) {}
+      }
+      function armSilenceTimer(){
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(stopNow, SILENCE_GRACE_MS);
+      }
+
       recognition.onresult = (event) => {
         let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++){
@@ -3309,14 +3390,28 @@
           else interim += t;
         }
         setCaption((finalTranscript + ' ' + interim).trim() || '…listening');
+        if ((finalTranscript + interim).trim()) armSilenceTimer();
       };
-      recognition.onerror = (e) => { recognizing = false; reject(e); };
+      recognition.onerror = (e) => {
+        if (settled) return; // already resolving via onend — ignore late errors
+        if (e.error === 'no-speech') return; // not fatal, let the timers decide when to stop
+        settled = true;
+        recognizing = false;
+        if (silenceTimer) clearTimeout(silenceTimer);
+        if (hardTimer) clearTimeout(hardTimer);
+        reject(e);
+      };
       recognition.onend = () => {
         recognizing = false;
         document.getElementById('micBtn').classList.remove('on');
+        if (settled) return; // already rejected via onerror
+        settled = true;
+        if (silenceTimer) clearTimeout(silenceTimer);
+        if (hardTimer) clearTimeout(hardTimer);
         resolve(finalTranscript.trim());
       };
 
+      hardTimer = setTimeout(stopNow, HARD_TIMEOUT_MS);
       recognition.start();
       recognizing = true;
       document.getElementById('micBtn').classList.add('on');
@@ -3444,8 +3539,35 @@
     setInterviewState('listening', 'Listening');
     setOrb('listening', 'listening for yes or no');
     setCaption('…listening');
+
+    // ADDITIVE: typed yes/no fallback, shown alongside the mic the same way
+    // the main Q&A loop offers one — so a candidate whose mic fails (or who
+    // just prefers typing) isn't stuck on this confirmation screen.
+    const prevPlaceholder = typeAnswerInput.placeholder;
+    typeAnswerInput.placeholder = 'Type "yes" or "no"…';
+    showTypeAnswerRow();
+
     let reply = '';
-    try { reply = await listenOnce(); } catch (e) { return false; }
+    try {
+      reply = await Promise.race([
+        listenOnce(),
+        new Promise((resolve) => { typeAnswerResolver = resolve; })
+      ]);
+    } catch (e) {
+      // Mic failed entirely (denied permission, unsupported browser, no
+      // hardware, etc) — fall back to requiring the typed answer instead of
+      // silently treating it as "no" and leaving the candidate confused.
+      setFeedback('Could not hear you — please type yes or no below.');
+      try {
+        reply = await new Promise((resolve) => { typeAnswerResolver = resolve; });
+      } catch (e2) {
+        reply = '';
+      }
+    }
+    typeAnswerResolver = null;
+    hideTypeAnswerRow();
+    typeAnswerInput.placeholder = prevPlaceholder;
+    setFeedback('');
     return /\b(yes|yeah|yep|confirm|sure|correct)\b/i.test(reply || '');
   }
 
@@ -3466,6 +3588,34 @@
     micBtn.classList.remove('retry');
     micBtn.onclick = null;
     micBtn.textContent = 'hold mic disabled — auto listening';
+  }
+
+  // ---------- typed-answer fallback (additive) ----------
+  const typeInsteadBtn = document.getElementById('typeInsteadBtn');
+  const typeAnswerRow = document.getElementById('typeAnswerRow');
+  const typeAnswerInput = document.getElementById('typeAnswerInput');
+  const typeAnswerSendBtn = document.getElementById('typeAnswerSendBtn');
+  function showTypeAnswerRow(){
+    typeAnswerRow.style.display = 'block';
+    typeAnswerInput.value = '';
+    typeAnswerInput.focus();
+  }
+  function hideTypeAnswerRow(){
+    typeAnswerRow.style.display = 'none';
+  }
+  if (typeInsteadBtn) {
+    typeInsteadBtn.addEventListener('click', () => {
+      if (typeAnswerRow.style.display === 'block') { hideTypeAnswerRow(); return; }
+      showTypeAnswerRow();
+    });
+  }
+  if (typeAnswerSendBtn) {
+    typeAnswerSendBtn.addEventListener('click', () => {
+      const val = typeAnswerInput.value.trim();
+      if (!val) return;
+      if (recognition) { try { recognition.stop(); } catch (e) {} }
+      if (typeAnswerResolver) { const r = typeAnswerResolver; typeAnswerResolver = null; r(val); }
+    });
   }
 
   // ---------- main interview loop ----------
@@ -3500,14 +3650,36 @@
     // speak() to resolve first eliminates that overlap entirely.
     let answer = '';
     try {
-      answer = await listenWithBargeIn(() => false, () => {});
+      // ADDITIVE: race the mic listener against a manual typed-answer
+      // submit (see typeAnswerResolver below). Whichever settles first
+      // wins; a Promise only ever settles once, so if the mic resolves
+      // late after a manual submit already won, that late resolve is
+      // silently ignored — no interference with the typed path.
+      answer = await Promise.race([
+        listenWithBargeIn(() => false, () => {}),
+        new Promise((resolve) => { typeAnswerResolver = resolve; })
+      ]);
+      typeAnswerResolver = null;
+      hideTypeAnswerRow();
     } catch (e) {
       if (!interviewActive) return;
-      setFeedback('Could not capture audio — check mic permissions, then tap the mic button below to retry this question.');
+      typeAnswerResolver = null;
+      // ADDITIVE fallback: this fires both when SpeechRecognition isn't
+      // supported at all (rejects immediately) and when the mic errors out
+      // mid-listen (permission denied, hardware issue, etc). Either way,
+      // offer typing as a full substitute rather than a dead end — tapping
+      // "retry mic" still works if the candidate prefers that instead.
+      setFeedback('Could not capture audio — check mic permissions and tap the mic button to retry, or just type your answer below.');
       setInterviewState('', 'Mic error');
-      setOrb('error', 'mic error — tap mic to retry');
+      setOrb('error', 'mic error — tap mic to retry, or type below');
       showMicRetry();
-      return;
+      showTypeAnswerRow();
+      try {
+        answer = await new Promise((resolve) => { typeAnswerResolver = resolve; });
+      } catch (e2) { return; }
+      typeAnswerResolver = null;
+      hideTypeAnswerRow();
+      clearMicRetry();
     }
     if (!interviewActive) return;
     if (!answer){
