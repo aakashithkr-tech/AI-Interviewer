@@ -241,7 +241,8 @@ async function persistSession(candidateKey, session, report) {
     scores: report ? report.scores : null,
     concepts,
     practiceMode: !!session.practiceMode,
-    practiceFocus: session.practiceFocus || null
+    practiceFocus: session.practiceFocus || null,
+    report: report || null
   });
   if (store[candidateKey].sessions.length > 60) store[candidateKey].sessions.shift();
   saveStore(store);
@@ -719,7 +720,17 @@ app.get('/api/interview/:sessionId/report', async (req, res) => {
   const t0 = Date.now();
   try {
     const session = sessions.get(req.params.sessionId);
-    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (!session) {
+      // Live session isn't in memory anymore (server restarted, or this is an
+      // older interview being reopened from History) — fall back to the
+      // full report we persisted to disk right after the interview finished.
+      const store = loadStore();
+      for (const key in store) {
+        const past = (store[key].sessions || []).find(s => s.sessionId === req.params.sessionId);
+        if (past && past.report) return res.json(past.report);
+      }
+      return res.status(404).json({ error: 'Session not found' });
+    }
     if (session.turns.length === 0) return res.status(400).json({ error: 'No turns recorded yet' });
 
     const turns = session.turns;
@@ -848,7 +859,11 @@ app.get('/api/candidate/:name/history', (req, res) => {
 
   res.json({
     hasHistory: true, readiness, trend, skillBars, weakest,
-    sessions: recent.map(s => ({ topic: s.topic, date: s.date, score: s.scores.hiringProbability }))
+    sessions: recent.map(s => ({
+      topic: s.topic, date: s.date, score: s.scores.hiringProbability,
+      sessionId: s.sessionId,
+      concepts: (s.concepts || []).map(c => ({ tag: c.tag, score: c.avgCompetence }))
+    }))
   });
 });
 

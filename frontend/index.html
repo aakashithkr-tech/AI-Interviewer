@@ -140,22 +140,31 @@
     box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
   }
   .returning-banner.show{ display:flex; }
-  .returning-banner .day-num{ font-family:'Fraunces',serif; font-size:26px; color:var(--brass); line-height:1; }
-  .returning-banner .day-lbl{ font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-top:2px; }
+  .returning-banner .rb-icon{ font-size:24px; line-height:1; flex-shrink:0; }
   .returning-banner .rb-text{ font-size:13.5px; color:var(--ink-dim); }
   .returning-banner .rb-text b{ color:var(--ink); font-weight:600; }
   .returning-banner .rb-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
   .returning-banner .rb-tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--teal); border:1px solid rgba(79,209,197,.3); background:var(--teal-dim); padding:2px 8px; border-radius:10px; }
 
   .section-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-dim); margin-bottom:12px; }
-  .chip-grid{ display:flex; flex-wrap:wrap; gap:10px; }
+  .chip-grid{ display:flex; flex-wrap:wrap; gap:12px; }
   .subject-chip{
-    background:var(--bg-panel); border:1px solid var(--line); color:var(--ink);
-    padding:12px 18px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:14px;
-    transition:.15s; display:flex; align-items:center; gap:8px;
+    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); color:var(--ink);
+    padding:11px 20px 11px 12px; border-radius:14px; cursor:pointer; font-family:inherit; font-size:14px; font-weight:500;
+    transition:border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
+    display:flex; align-items:center; gap:10px;
+    box-shadow:0 14px 30px -20px rgba(0,0,0,.5);
   }
-  .subject-chip:hover{ border-color:var(--ink-dim); }
-  .subject-chip.selected{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); }
+  .subject-chip .chip-icon{
+    width:30px; height:30px; flex-shrink:0; border-radius:9px;
+    background:var(--bg-panel-2); border:1px solid var(--line-soft);
+    display:flex; align-items:center; justify-content:center; font-size:15px; line-height:1;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .subject-chip:hover{ border-color:var(--ink-dim); transform:translateY(-1px); }
+  .subject-chip.selected{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); box-shadow:0 14px 30px -20px rgba(0,0,0,.5), 0 0 0 1px rgba(201,162,75,.15); }
+  .subject-chip.selected .chip-icon{ border-color:rgba(201,162,75,.4); background:rgba(201,162,75,.1); }
   .custom-topic-box{ margin-top:14px; max-width:520px; display:none; }
   .custom-topic-box.show{ display:block; }
   .persona-row{ display:flex; gap:10px; max-width:560px; }
@@ -550,24 +559,41 @@
 
   /* ===== HISTORY PAGE ===== */
   .history-list{ display:flex; flex-direction:column; gap:14px; }
-  .history-row{
+  .history-item{
     background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
     border:1px solid var(--line); border-radius:var(--radius);
-    padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
     box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
     transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    overflow:hidden; cursor:pointer;
   }
-  .history-row:hover{
+  .history-item:hover{
     border-color:rgba(201,162,75,.3); transform:translateY(-1px);
     box-shadow:0 24px 60px -24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
   }
-  .history-row .hr-topic{ font-family:'Fraunces',serif; font-size:16px; color:var(--ink); }
+  .history-item.open{ border-color:rgba(201,162,75,.4); }
+  .history-row{
+    padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  .history-row .hr-topic{ font-family:'Fraunces',serif; font-size:16px; color:var(--ink); display:flex; align-items:center; gap:8px; }
+  .history-row .hr-chevron{ font-size:11px; color:var(--ink-faint); transition:transform .2s ease; }
+  .history-item.open .hr-chevron{ transform:rotate(90deg); color:var(--brass); }
   .history-row .hr-date{ font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
   .history-row .hr-score{ font-family:'Fraunces',serif; font-size:26px; }
   .history-row .hr-score.good{ color:var(--teal); }
   .history-row .hr-score.mid{ color:var(--brass); }
   .history-row .hr-score.low{ color:var(--red); }
   .history-row .hr-score-lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); text-align:center; }
+
+  .history-expand{ display:none; padding:0 22px 22px; border-top:1px dashed var(--line-soft); cursor:default; }
+  .history-item.open .history-expand{ display:block; }
+  .history-expand .he-label{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin:16px 0 10px; }
+  .history-expand .he-concepts{ display:flex; flex-direction:column; gap:8px; }
+  .he-concept-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--bg-panel-2); border:1px solid var(--line-soft); border-radius:10px; padding:9px 12px 9px 14px; flex-wrap:wrap; }
+  .he-concept-row .hec-tag{ font-size:13px; color:var(--ink); }
+  .he-concept-row .hec-score{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-dim); margin-left:8px; }
+  .he-concept-row .hec-practice-btn{ padding:6px 12px; font-size:11.5px; }
+  .history-expand .he-actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .he-report-status{ font-size:12px; color:var(--ink-faint); margin-top:10px; }
 
   /* ===== PROFILE PAGE ===== */
   .profile-card{
@@ -603,7 +629,6 @@
       <span class="avatar-chip" id="userChip" style="display:none;">
         <span class="avatar" id="userAvatar">?</span>
         <span id="userNameLabel"></span>
-        <a href="#" class="signout" id="signoutLink">Sign out</a>
       </span>
     </div>
   </div>
@@ -713,13 +738,18 @@
     </div>
 
     <div class="returning-banner" id="returningBanner">
-      <div>
-        <div class="day-num" id="rbDayNum">2</div>
-        <div class="day-lbl">Day</div>
-      </div>
+      <div class="rb-icon">👋</div>
       <div>
         <div class="rb-text" id="rbText">Welcome back — last time you covered <b>—</b>.</div>
         <div class="rb-tags" id="rbTags"></div>
+      </div>
+    </div>
+
+    <div class="returning-banner practice-banner" id="practiceBanner" style="border-left-color:var(--red);">
+      <div class="practice-banner-icon">🎯</div>
+      <div>
+        <div class="rb-text">Practice Mode: <b id="practiceBannerTag">—</b><span id="practiceBannerBaseline"></span></div>
+        <button class="btn-ghost" id="practiceBannerCancel" style="margin-top:8px;padding:6px 12px;font-size:11.5px;">Cancel practice mode</button>
       </div>
     </div>
 
@@ -769,23 +799,15 @@
       <p class="sub">Build your interview — pick a subject, style, and length.</p>
     </div>
 
-    <div class="returning-banner practice-banner" id="practiceBanner" style="border-left-color:var(--red);">
-      <div class="practice-banner-icon">🎯</div>
-      <div>
-        <div class="rb-text">Practice Mode: <b id="practiceBannerTag">—</b><span id="practiceBannerBaseline"></span></div>
-        <button class="btn-ghost" id="practiceBannerCancel" style="margin-top:8px;padding:6px 12px;font-size:11.5px;">Cancel practice mode</button>
-      </div>
-    </div>
-
     <div>
       <div class="section-label">Step 1 — What are you preparing for?</div>
       <div class="chip-grid" id="subjectChips">
-        <button class="subject-chip" data-topic="Machine Learning Fundamentals">🧠 Machine Learning</button>
-        <button class="subject-chip" data-topic="Retrieval-Augmented Generation & AI Agents">🤖 RAG & AI Agents</button>
-        <button class="subject-chip" data-topic="System Design">🏗️ System Design</button>
-        <button class="subject-chip" data-topic="Data Structures & Algorithms">🧩 DSA</button>
-        <button class="subject-chip" data-topic="Web Development">🌐 Web Development</button>
-        <button class="subject-chip" data-topic="__custom__">✏️ Custom topic</button>
+        <button class="subject-chip" data-topic="Machine Learning Fundamentals"><span class="chip-icon">🧠</span>Machine Learning</button>
+        <button class="subject-chip" data-topic="Retrieval-Augmented Generation & AI Agents"><span class="chip-icon">🤖</span>RAG &amp; AI Agents</button>
+        <button class="subject-chip" data-topic="System Design"><span class="chip-icon">🏗️</span>System Design</button>
+        <button class="subject-chip" data-topic="Data Structures & Algorithms"><span class="chip-icon">🧩</span>DSA</button>
+        <button class="subject-chip" data-topic="Web Development"><span class="chip-icon">🌐</span>Web Development</button>
+        <button class="subject-chip" data-topic="__custom__"><span class="chip-icon">✏️</span>Custom topic</button>
       </div>
       <div class="custom-topic-box" id="customTopicBox">
         <div class="field-group">
@@ -880,10 +902,7 @@
     </div>
     <p class="warn" id="welcomeWarning" style="display:none;"></p>
 
-    <details class="config">
-      <summary>Backend URL</summary>
-      <input type="text" id="apiBaseInput" class="mono" placeholder="http://localhost:3000" />
-    </details>
+    <input type="hidden" id="apiBaseInput" />
   </div>
 
   <!-- ===================== HISTORY ===================== -->
@@ -1257,8 +1276,7 @@
   document.getElementById('loginNameInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('continueBtn').click();
   });
-  document.getElementById('signoutLink').addEventListener('click', (e) => {
-    e.preventDefault();
+  function doSignOut(){
     stopInterview();
     if (window.localStorage) localStorage.removeItem('interview_user_name');
     userName = '';
@@ -1268,10 +1286,9 @@
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
     showScreen('login');
-  });
-  document.getElementById('profileSignoutBtn').addEventListener('click', () => {
-    document.getElementById('signoutLink').click();
-  });
+  }
+  document.getElementById('userChip').addEventListener('click', goToProfile);
+  document.getElementById('profileSignoutBtn').addEventListener('click', doSignOut);
   tryAutoLogin();
 
   // ---------- landing / hero ----------
@@ -1292,7 +1309,6 @@
       const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/summary');
       const data = await res.json();
       if (!data.isReturning) return;
-      document.getElementById('rbDayNum').textContent = data.dayNumber;
       document.getElementById('rbText').textContent = 'Welcome back — last time you covered ' + (data.lastTopic || 'a topic') + '.';
       const tagsEl = document.getElementById('rbTags');
       tagsEl.innerHTML = '';
@@ -1378,12 +1394,70 @@
         return;
       }
       data.sessions.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+
         const row = document.createElement('div');
         row.className = 'history-row';
         row.innerHTML =
-          '<div><div class="hr-topic">' + s.topic + '</div><div class="hr-date">' + fmtDate(s.date) + '</div></div>' +
+          '<div><div class="hr-topic"><span class="hr-chevron">▸</span>' + s.topic + '</div><div class="hr-date">' + fmtDate(s.date) + '</div></div>' +
           '<div style="text-align:center;"><div class="hr-score ' + scoreClass(s.score) + '">' + s.score + '</div><div class="hr-score-lbl">score</div></div>';
-        list.appendChild(row);
+        item.appendChild(row);
+
+        const expand = document.createElement('div');
+        expand.className = 'history-expand';
+
+        const concepts = s.concepts || [];
+        let conceptsHtml = '<div class="he-label">Concepts from this interview</div><div class="he-concepts">';
+        if (concepts.length){
+          concepts.forEach(c => {
+            conceptsHtml += '<div class="he-concept-row"><span><span class="hec-tag">' + c.tag + '</span><span class="hec-score">' + c.score + '%</span></span>' +
+              '<button type="button" class="btn-ghost hec-practice-btn" data-tag="' + c.tag.replace(/"/g,'&quot;') + '" data-score="' + c.score + '">Practice →</button></div>';
+          });
+        } else {
+          conceptsHtml += '<div class="dash-empty">No concept breakdown recorded for this session.</div>';
+        }
+        conceptsHtml += '</div>';
+
+        expand.innerHTML =
+          conceptsHtml +
+          '<div class="he-actions">' +
+            '<button type="button" class="btn-ghost he-report-btn">📄 View Report</button>' +
+          '</div>' +
+          '<div class="he-report-status" style="display:none;"></div>';
+
+        item.appendChild(expand);
+        list.appendChild(item);
+
+        row.addEventListener('click', () => {
+          const wasOpen = item.classList.contains('open');
+          document.querySelectorAll('.history-item.open').forEach(el => el.classList.remove('open'));
+          if (!wasOpen) item.classList.add('open');
+        });
+        expand.querySelectorAll('.hec-practice-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectTopicForPractice(btn.dataset.tag, Number(btn.dataset.score));
+          });
+        });
+        expand.querySelector('.he-report-btn').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const statusEl = expand.querySelector('.he-report-status');
+          statusEl.style.display = 'block';
+          statusEl.textContent = 'Loading report…';
+          try {
+            const check = await fetch(apiBase() + '/api/interview/' + s.sessionId + '/report');
+            if (!check.ok) {
+              statusEl.textContent = 'This report is no longer available.';
+              return;
+            }
+            sessionId = s.sessionId;
+            await loadReport();
+            statusEl.style.display = 'none';
+          } catch (err) {
+            statusEl.textContent = 'Could not load this report right now — please try again.';
+          }
+        });
       });
     } catch (e) { empty.style.display = 'block'; empty.textContent = 'Could not load history — check your connection and try again.'; }
   }
