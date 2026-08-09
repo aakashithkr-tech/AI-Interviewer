@@ -212,15 +212,22 @@ function buildDemoSession(sessionIdSuffix, topic, daysAgo, scores, questions) {
   };
 }
 
-function seedDemoHistory() {
+function seedDemoHistoryFor(fullName, demoSessions) {
   const store = loadStore();
-  const key = slugKey('Aakashi Thakur');
-  if (!store[key]) store[key] = { name: 'Aakashi Thakur', sessions: [] };
+  const key = slugKey(fullName);
+  if (!store[key]) store[key] = { name: fullName, sessions: [] };
   const already = store[key].sessions.some(s => (s.sessionId || '').startsWith('demo-seed-'));
   if (already) return;
 
-  const demoSessions = [
-    buildDemoSession('1', 'Web Development', 8,
+  // Oldest first, so they land before any real sessions chronologically.
+  store[key].sessions = [...demoSessions, ...store[key].sessions];
+  saveStore(store);
+  console.log('[seed] demo history added for ' + fullName);
+}
+
+function seedDemoHistory() {
+  seedDemoHistoryFor('Aakashi Thakur', [
+    buildDemoSession('aak-1', 'Web Development', 8,
       { hiringProbability: 78, confidence: 74, communication: 79, problemSolving: 76, competence: 80 },
       [
         { q: 'Explain the difference between let, const, and var in JavaScript.', a: 'Covered scoping and hoisting differences clearly.', verdict: 'correct', tag: 'JavaScript Fundamentals', difficulty: 2, feedback: 'Clear, accurate explanation with a good example.' },
@@ -230,7 +237,7 @@ function seedDemoHistory() {
         { q: 'Explain how async/await works under the hood.', a: 'Connected it correctly to promises and the event loop.', verdict: 'correct', tag: 'JavaScript Fundamentals', difficulty: 3, feedback: 'Confident, technically sound answer.' },
         { q: 'What are React hooks and why were they introduced?', a: 'Explained useState/useEffect and functional component motivation.', verdict: 'correct', tag: 'React', difficulty: 2, feedback: 'Well-structured explanation.' }
       ]),
-    buildDemoSession('2', 'Data Structures & Algorithms', 5,
+    buildDemoSession('aak-2', 'Data Structures & Algorithms', 5,
       { hiringProbability: 72, confidence: 68, communication: 70, problemSolving: 74, competence: 71 },
       [
         { q: 'Explain how a hash table resolves collisions.', a: 'Mentioned chaining but was fuzzy on open addressing.', verdict: 'partial', tag: 'hashing', difficulty: 3, feedback: 'Partial understanding — open addressing wasn\u2019t clear.', next: 'Revisit open addressing and probing strategies.', note: 'Confused linear probing with chaining.' },
@@ -239,7 +246,7 @@ function seedDemoHistory() {
         { q: 'What\u2019s the time complexity of your hashing-based solution?', a: 'Said O(n) but couldn\u2019t justify amortized analysis.', verdict: 'incorrect', tag: 'hashing', difficulty: 4, feedback: 'Answer was close but reasoning was incomplete.', next: 'Practice amortized time-complexity analysis.' },
         { q: 'When would you choose a linked list over an array?', a: 'Gave frequent-insertion/deletion scenario correctly.', verdict: 'correct', tag: 'data structures basics', difficulty: 1, feedback: 'Accurate, well-reasoned.' }
       ]),
-    buildDemoSession('3', 'Behavioral', 3,
+    buildDemoSession('aak-3', 'Behavioral', 3,
       { hiringProbability: 81, confidence: 83, communication: 85, problemSolving: 74, competence: 78 },
       [
         { q: 'Tell me about a time you disagreed with a teammate.', a: 'Used a structured STAR-style answer with a clear resolution.', verdict: 'correct', tag: 'Communication', difficulty: 2, feedback: 'Well-structured, specific, and reflective.' },
@@ -247,12 +254,34 @@ function seedDemoHistory() {
         { q: 'How do you handle tight deadlines?', a: 'Explained prioritization but answer ran long and lost focus.', verdict: 'partial', tag: 'Communication', difficulty: 2, feedback: 'Good content, could be more concise.', next: 'Practice trimming answers to the core STAR points.', note: 'Answer was thorough but over-long — tighten delivery.' },
         { q: 'Tell me about a time you received difficult feedback.', a: 'Reflected maturely and described concrete behavior change.', verdict: 'correct', tag: 'Growth Mindset', difficulty: 2, feedback: 'Genuine, self-aware answer.' }
       ])
-  ];
+  ]);
 
-  // Oldest first, so they land before any real sessions chronologically.
-  store[key].sessions = [...demoSessions, ...store[key].sessions];
-  saveStore(store);
-  console.log('[seed] demo history added for Aakashi Thakur');
+  // Second demo persona — different subject mix and a lower/rising score
+  // trend so the two demo accounts don't look identical during a live demo.
+  seedDemoHistoryFor('Rahul Verma', [
+    buildDemoSession('rah-1', 'Machine Learning Fundamentals', 9,
+      { hiringProbability: 58, confidence: 55, communication: 61, problemSolving: 57, competence: 60 },
+      [
+        { q: 'Explain the bias-variance tradeoff.', a: 'Got the general idea but mixed up which one overfitting relates to.', verdict: 'partial', tag: 'ML Theory', difficulty: 2, feedback: 'Right direction, but the overfitting/underfitting mapping was reversed.', next: 'Re-derive the bias-variance decomposition with a concrete example.', note: 'Mixed up overfitting vs underfitting — worth a focused re-test.' },
+        { q: 'What is the difference between supervised and unsupervised learning?', a: 'Correct, with good examples of each.', verdict: 'correct', tag: 'ML Theory', difficulty: 1, feedback: 'Clear and accurate.' },
+        { q: 'How does gradient descent find a minimum?', a: 'Described the update rule but was vague on learning rate effects.', verdict: 'partial', tag: 'Optimization', difficulty: 3, feedback: 'Core idea was right, but learning-rate intuition was thin.', next: 'Practice explaining learning-rate too-high/too-low failure modes.' },
+        { q: 'What is regularization and why do we use it?', a: 'Explained L2 regularization correctly.', verdict: 'correct', tag: 'ML Theory', difficulty: 2, feedback: 'Solid, precise answer.' }
+      ]),
+    buildDemoSession('rah-2', 'System Design', 6,
+      { hiringProbability: 65, confidence: 62, communication: 66, problemSolving: 68, competence: 64 },
+      [
+        { q: 'How would you design a URL shortener?', a: 'Covered hashing and a basic DB schema, missed caching layer.', verdict: 'partial', tag: 'System Design Basics', difficulty: 3, feedback: 'Good foundation, but no caching or read-scaling discussion.', next: 'Practice adding a caching layer (Redis) to reduce DB load.', note: 'Jumped to implementation before discussing scale requirements.' },
+        { q: 'What is the difference between horizontal and vertical scaling?', a: 'Explained both correctly with trade-offs.', verdict: 'correct', tag: 'Scalability', difficulty: 2, feedback: 'Clear, well-reasoned comparison.' },
+        { q: 'How would you handle a sudden traffic spike?', a: 'Mentioned load balancers and auto-scaling correctly.', verdict: 'correct', tag: 'Scalability', difficulty: 3, feedback: 'Confident, accurate answer.' }
+      ]),
+    buildDemoSession('rah-3', 'RAG & AI Agents', 2,
+      { hiringProbability: 74, confidence: 71, communication: 76, problemSolving: 73, competence: 75 },
+      [
+        { q: 'What problem does Retrieval-Augmented Generation solve?', a: 'Correctly tied it to reducing hallucination with grounded context.', verdict: 'correct', tag: 'RAG Concepts', difficulty: 2, feedback: 'Precise, well-articulated answer.' },
+        { q: 'How do vector embeddings enable semantic search?', a: 'Explained embeddings and cosine similarity accurately.', verdict: 'correct', tag: 'RAG Concepts', difficulty: 3, feedback: 'Strong technical grasp.' },
+        { q: 'What are the tradeoffs of chunk size in a RAG pipeline?', a: 'Partially covered it — mentioned context loss but not retrieval noise.', verdict: 'partial', tag: 'RAG Concepts', difficulty: 4, feedback: 'Good start, missed the retrieval-noise side of the tradeoff.', next: 'Compare small vs large chunk sizes on both recall and precision.' }
+      ])
+  ]);
 }
 seedDemoHistory();
 

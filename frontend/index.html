@@ -132,6 +132,18 @@
   #welcome, #dashboard, #studio, #history, #profile{ gap:32px; padding-top:36px; }
   #welcome h1, #dashboard h1, #studio h1, #history h1, #profile h1{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(28px,4vw,42px); margin:0; }
   #welcome .sub, #dashboard .sub, #studio .sub, #history .sub, #profile .sub{ color:var(--ink-dim); font-size:15px; margin-top:6px; }
+
+  /* Studio header gets its own treatment — an eyebrow pill + gradient title —
+     so it doesn't just repeat "Interview" right under the navbar's "Interview Room". */
+  .studio-kicker{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--teal); border:1px solid rgba(79,209,197,.32); background:var(--teal-dim);
+    padding:5px 12px; border-radius:20px; width:fit-content; display:inline-block; margin-bottom:14px;
+  }
+  .studio-title{
+    background:linear-gradient(100deg, var(--ink) 20%, var(--brass) 75%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
   .returning-banner{
     display:none; align-items:center; gap:16px;
     background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%), var(--bg-panel);
@@ -788,7 +800,10 @@
       <div class="practice-banner-icon">🎯</div>
       <div>
         <div class="rb-text">Practice Mode: <b id="practiceBannerTag">—</b><span id="practiceBannerBaseline"></span></div>
-        <button class="btn-ghost" id="practiceBannerCancel" style="margin-top:8px;padding:6px 12px;font-size:11.5px;">Cancel practice mode</button>
+        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+          <button class="btn-primary" id="practiceBannerStart" style="width:auto; padding:8px 16px; font-size:12.5px;">🎙️ Start Interview →</button>
+          <button class="btn-ghost" id="practiceBannerCancel" style="padding:8px 14px;font-size:11.5px;">Cancel practice mode</button>
+        </div>
       </div>
     </div>
 
@@ -834,7 +849,8 @@
   <!-- ===================== INTERVIEW STUDIO (setup) ===================== -->
   <div class="screen" id="studio">
     <div>
-      <h1>Interview Studio</h1>
+      <span class="studio-kicker">🎙️ Build Mode</span>
+      <h1 class="studio-title">Interview Studio</h1>
       <p class="sub">Build your interview — pick a subject, style, and length.</p>
     </div>
 
@@ -1592,6 +1608,12 @@
     hidePracticeBanner();
   }
   document.getElementById('practiceBannerCancel').addEventListener('click', clearPracticeMode);
+  // "Start Interview →" on the persistent practice banner — jumps straight into
+  // Studio with the practice topic already selected, same as "Practice Now",
+  // so the candidate doesn't have to re-pick the weak area every time.
+  document.getElementById('practiceBannerStart').addEventListener('click', () => {
+    if (practiceFocus) selectTopicForPractice(practiceFocus, practiceBaselineScore);
+  });
 
   // Selects a subject chip if it matches a preset topic, otherwise drops the
   // tag into the custom-topic box — used by "Practice Now" / "Practice Weak Areas"
