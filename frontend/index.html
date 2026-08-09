@@ -178,6 +178,45 @@
   .camera-toggle-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; max-width:560px; }
   .camera-toggle-row .hint{ font-size:12px; color:var(--ink-faint); line-height:1.5; }
 
+  /* ===== RESUME / JD CARD (Interview Studio) ===== */
+  .resume-card{
+    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
+    border:1px solid var(--line); border-radius:var(--radius); max-width:640px; overflow:hidden;
+    box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+    transition:border-color .2s ease;
+  }
+  .resume-card.open{ border-color:rgba(201,162,75,.3); }
+  .resume-toggle{
+    width:100%; display:flex; align-items:center; gap:14px;
+    background:none; border:none; color:var(--ink); cursor:pointer;
+    padding:18px 20px; text-align:left; font-family:inherit;
+  }
+  .resume-toggle .rt-icon{
+    width:38px; height:38px; border-radius:10px; background:var(--bg-panel-2); border:1px solid var(--line-soft);
+    display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;
+  }
+  .resume-toggle .rt-text{ display:flex; flex-direction:column; gap:2px; flex:1; }
+  .resume-toggle .rt-title{ font-size:14px; font-weight:500; color:var(--ink); }
+  .resume-toggle .rt-sub{ font-size:12px; color:var(--ink-dim); }
+  .resume-toggle .rt-chevron{ font-size:12px; color:var(--ink-faint); transition:transform .2s ease; flex-shrink:0; }
+  .resume-card.open .rt-chevron{ transform:rotate(180deg); color:var(--brass); }
+  .resume-body{ display:none; padding:0 20px 22px; }
+  .resume-card.open .resume-body{ display:block; }
+  .resume-textarea{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:12px 14px; font-size:13px; font-family:inherit; resize:vertical;
+    transition:border-color .15s ease;
+  }
+  .resume-textarea:focus{ outline:none; border-color:var(--brass); }
+  .resume-actions-row{ display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .resume-action-btn{ display:inline-flex; align-items:center; gap:7px; padding:9px 15px; font-size:12px; }
+  .resume-hint{ font-size:11px; color:var(--ink-faint); }
+  .resume-divider{ height:1px; background:var(--line-soft); margin:22px 0 18px; }
+  .jd-block .jd-label{ display:flex; align-items:baseline; gap:8px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin-bottom:10px; }
+  .optional-tag{ font-size:10.5px; text-transform:none; letter-spacing:0; color:var(--ink-faint); font-weight:400; }
+  .skill-gap-result{ margin-top:18px; }
+  .skill-gap-summary{ margin-top:10px; font-size:12.5px; color:var(--brass); font-style:italic; }
+
   .start-row{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
   .start-row .btn-primary{ width:auto; padding:15px 36px; }
   details.config{ color:var(--ink-dim); font-size:12px; }
@@ -863,34 +902,49 @@
     </div>
 
     <div>
-      <div class="section-label">Resume / job description (optional)</div>
-      <details class="config" id="resumeDetails" open>
-        <summary>✏️ Paste resume or JD to get role-specific questions</summary>
-        <textarea id="resumeInput" class="mono" rows="6" placeholder="Paste your resume text or the job description here — the interviewer will tailor questions to what's actually in it (projects, stack, responsibilities) instead of generic textbook questions." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
-        <div style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
-        <button type="button" class="btn-ghost" id="pasteClipboardBtn" style="padding:6px 12px; font-size:11.5px;">📋 Paste from clipboard</button>
-          <button type="button" class="btn-ghost" id="uploadResumeBtn" style="padding:6px 12px; font-size:11.5px;">📎 Upload PDF / TXT</button>
-          <input type="file" id="resumeFileInput" accept=".pdf,.txt,.md" style="display:none;" />
-        <span id="pasteStatus" style="font-size:11px; color:var(--ink-faint);">If Ctrl+V doesn't work in this browser, use this button instead.</span>
-        </div>
-        <div style="margin-top:14px;">
-          <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim);">Job description (optional, for skill-gap analysis)</label>
-          <textarea id="jdInput" class="mono" rows="4" placeholder="Paste the job description here to see a skill-gap table before you start." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
-          <button type="button" class="btn-ghost" id="skillGapBtn" style="padding:6px 12px; font-size:11.5px; margin-top:8px;">🎯 Analyze skill gap</button>
-          <span id="skillGapStatus" style="font-size:11px; color:var(--ink-faint); margin-left:8px;"></span>
-        </div>
-        <div id="skillGapResult" style="display:none; margin-top:14px; max-width:560px;">
-          <div class="plan-card" style="max-width:100%;">
-            <div class="pc-title">Skill Gap</div>
-            <div id="skillGapTable"></div>
-            <div id="skillGapSummary" style="margin-top:10px; font-size:12.5px; color:var(--brass); font-style:italic;"></div>
+      <div class="section-label">Resume / job description <span class="optional-tag">optional</span></div>
+      <div class="resume-card open" id="resumeCard">
+        <button type="button" class="resume-toggle" id="resumeToggleBtn">
+          <span class="rt-icon">✏️</span>
+          <span class="rt-text">
+            <span class="rt-title">Paste resume or JD</span>
+            <span class="rt-sub">Get role-specific questions tailored to what's actually in it</span>
+          </span>
+          <span class="rt-chevron">▾</span>
+        </button>
+        <div class="resume-body" id="resumeBody">
+          <textarea id="resumeInput" class="mono resume-textarea" rows="6" placeholder="Paste your resume text or the job description here — the interviewer will tailor questions to what's actually in it (projects, stack, responsibilities) instead of generic textbook questions."></textarea>
+          <div class="resume-actions-row">
+            <button type="button" class="btn-ghost resume-action-btn" id="pasteClipboardBtn"><span>📋</span>Paste from clipboard</button>
+            <button type="button" class="btn-ghost resume-action-btn" id="uploadResumeBtn"><span>📎</span>Upload PDF / TXT</button>
+            <input type="file" id="resumeFileInput" accept=".pdf,.txt,.md" style="display:none;" />
+          </div>
+          <span id="pasteStatus" class="resume-hint">If Ctrl+V doesn't work in this browser, use the button instead.</span>
+
+          <div class="resume-divider"></div>
+
+          <div class="jd-block">
+            <label class="jd-label">Job description <span class="optional-tag">for skill-gap analysis</span></label>
+            <textarea id="jdInput" class="mono resume-textarea" rows="4" placeholder="Paste the job description here to see a skill-gap table before you start."></textarea>
+            <div class="resume-actions-row">
+              <button type="button" class="btn-ghost resume-action-btn" id="skillGapBtn"><span>🎯</span>Analyze skill gap</button>
+              <span id="skillGapStatus" class="resume-hint"></span>
+            </div>
+          </div>
+
+          <div id="skillGapResult" class="skill-gap-result" style="display:none;">
+            <div class="plan-card" style="max-width:100%;">
+              <div class="pc-title">Skill Gap</div>
+              <div id="skillGapTable"></div>
+              <div id="skillGapSummary" class="skill-gap-summary"></div>
+            </div>
           </div>
         </div>
-      </details>
+      </div>
     </div>
 
     <div>
-      <div class="section-label">Camera (optional)</div>
+      <div class="section-label">Camera <span class="optional-tag">optional</span></div>
       <div class="camera-toggle-row">
         <button class="btn-ghost" id="cameraToggleBtn">🎥 Enable camera for posture scoring</button>
         <span class="hint" id="cameraHint">Analyzed entirely on your device, frame-by-frame — video is never uploaded. Only a numeric posture/eye-contact score is sent with each answer.</span>
@@ -1601,6 +1655,12 @@
   }
 
   // ---------- resume/JD paste fallback ----------
+  const resumeToggleBtn = document.getElementById('resumeToggleBtn');
+  if (resumeToggleBtn) {
+    resumeToggleBtn.addEventListener('click', () => {
+      document.getElementById('resumeCard').classList.toggle('open');
+    });
+  }
  const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
   const pasteStatus = document.getElementById('pasteStatus');
 
