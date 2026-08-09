@@ -854,6 +854,131 @@
 }
 </style>
 
+
+<style id="hero-flow-below-polish">
+/* HERO FLOW BELOW — layout-only change. Existing markup + JS remain untouched. */
+#landing .hero-grid{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  gap:30px !important;
+  padding:28px 0 12px !important;
+  min-height:0 !important;
+}
+#landing .hero-copy{
+  width:100% !important;
+  max-width:980px !important;
+  margin:0 auto !important;
+}
+#landing .hero-copy h1{
+  max-width:900px !important;
+  font-size:clamp(46px,5.4vw,76px) !important;
+  line-height:1.02 !important;
+  margin:14px 0 18px !important;
+}
+#landing .hero-copy .hero-sub{
+  max-width:780px !important;
+  font-size:16px !important;
+  line-height:1.6 !important;
+  margin-bottom:20px !important;
+}
+#landing .hero-proof{
+  margin-bottom:18px !important;
+}
+#landing .hero-flow-card{
+  width:100% !important;
+  max-width:980px !important;
+  margin:0 auto !important;
+  padding:20px !important;
+  border-radius:20px !important;
+}
+#landing .hero-flow-head{
+  margin-bottom:14px !important;
+}
+#landing .hero-flow-title{
+  font-size:24px !important;
+}
+#landing .flow-list{
+  display:grid !important;
+  grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  gap:9px !important;
+}
+#landing .flow-step{
+  display:grid !important;
+  grid-template-columns:34px 1fr !important;
+  grid-template-rows:auto auto !important;
+  gap:8px !important;
+  padding:13px !important;
+  min-height:112px !important;
+  align-content:start !important;
+}
+#landing .flow-num{
+  grid-row:1 / span 2 !important;
+}
+#landing .flow-main{
+  min-width:0 !important;
+}
+#landing .flow-main strong{
+  font-size:13px !important;
+}
+#landing .flow-main span{
+  font-size:10.5px !important;
+  line-height:1.4 !important;
+}
+#landing .flow-tag{
+  grid-column:2 !important;
+  justify-self:start !important;
+  margin-top:2px !important;
+}
+#landing .hero-flow-footer{
+  margin-top:12px !important;
+  display:flex !important;
+  flex-wrap:wrap !important;
+}
+#landing .landing-features{
+  margin-top:26px !important;
+}
+#landing .landing-section-head{
+  margin-bottom:14px !important;
+}
+@media (max-width:900px){
+  #landing .hero-grid{
+    gap:24px !important;
+    padding-top:20px !important;
+  }
+  #landing .hero-copy{
+    max-width:none !important;
+  }
+  #landing .hero-copy h1{
+    font-size:clamp(42px,8vw,62px) !important;
+  }
+  #landing .hero-flow-card{
+    max-width:none !important;
+  }
+  #landing .flow-list{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  }
+}
+@media (max-width:560px){
+  #landing .hero-grid{
+    gap:20px !important;
+    padding-top:12px !important;
+  }
+  #landing .hero-copy h1{
+    font-size:38px !important;
+  }
+  #landing .hero-copy .hero-sub{
+    font-size:14px !important;
+  }
+  #landing .flow-list{
+    grid-template-columns:1fr !important;
+  }
+  #landing .flow-step{
+    min-height:0 !important;
+  }
+}
+</style>
+
 </head>
 <body>
 
