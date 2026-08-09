@@ -648,8 +648,7 @@ Candidate experience level: ${experience || 'Intermediate'}.
 ${candidateCtx.text}
 
 RULES:
-1. Every question must trace back to a specific day/topic from the curriculum record above. Prioritize: (a) days with multiple attempts — probe deeper, since repeated attempts signal a shaky concept, (b) skipped days — check whether the candidate picked up the idea elsewhere, (c) days passed on the first try — verify it's real understanding and not luck.
-2. Your questions MUST be grounded in at least ${COHORT_MIN_DAYS} DIFFERENT curriculum days across the interview — do not stay on one day/topic the whole time.
+1. Question source priority: (a) if GitHub projects are listed above, weave in at least 2-3 questions grounded in a SPECIFIC repo/file/design decision from those projects across the interview — this is the strongest personalization signal available and must not be ignored, especially don't default to only curriculum-day questions when GitHub context is present; (b) days with multiple attempts — probe deeper, since repeated attempts signal a shaky concept; (c) skipped days — check whether the candidate picked up the idea elsewhere; (d) days passed on the first try — verify it's real understanding and not luck.
 3. Ask a minimum of ${COHORT_MIN_QUESTIONS} questions total (natural follow-ups count) before ending.
 4. Adapt difficulty: if the answer is strong, ask a harder follow-up on the SAME thread. If weak, step back to a simpler question on the same concept before moving to a different day.
 5. Give ONE short evidence-based feedback sentence per turn — paraphrase a specific piece of what the candidate said.
@@ -675,13 +674,18 @@ Always reply with STRICT JSON only, no markdown, matching this schema exactly:
 }`;
 }
 
-function buildCohortFirstQuestionPrompt(candidateCtx, persona, experience) {
-  return `Begin the interview now. Greet the candidate briefly by name, then ask your first question, grounded in one specific day from the curriculum record above (prefer a day with multiple attempts or a skipped day if one exists). Start at a medium-easy difficulty (level 2 of 5). Reply with STRICT JSON only:
+function buildCohortFirstQuestionPrompt(candidateCtx, persona, experience, hasGithub, focusDay) {
+  const dayInstruction = hasGithub
+    ? ', grounded in a SPECIFIC repo or design decision from the GitHub projects listed above (this takes priority over generic curriculum-day questions since it is the strongest personalization signal)'
+    : (focusDay
+      ? `, grounded specifically in Day ${focusDay} from the curriculum record above`
+      : ', grounded in one specific day from the curriculum record above (prefer a day with multiple attempts or a skipped day if one exists)');
+  return `Begin the interview now. Greet the candidate briefly by name, then ask your first question${dayInstruction}. Phrase this opening question freshly in your own words — do not reuse a stock or generic phrasing pattern; write it as if this is the first time you've ever asked about this topic. Start at a medium-easy difficulty (level 2 of 5). Reply with STRICT JSON only:
 {
   "nextQuestion": "<the opening question, in tone: ${PERSONAS[persona] || PERSONAS.friendly}>",
   "nextDifficulty": 2,
   "topicTag": "<short tag>",
-  "dayCovered": <curriculum day number, integer>,
+  "dayCovered": <curriculum day number, integer, or null if this question is GitHub-grounded instead>,
   "crossDayLink": false
 }`;
 }
@@ -909,8 +913,13 @@ app.post('/api/interview/start', async (req, res) => {
 
     // ---- Cohort-grounded branch (additive): only runs when the Studio's
     // cohort dropdown was used. Everything below this block is the
-    // original, unmodified generic-topic flow. ----
-    if (cohortCandidateKey) {
+    // original, unmodified generic-topic flow.
+    // Guard: practiceFocus (a specific weak-area re-test) always wins over a
+    // cohortCandidateKey if both somehow arrive together — e.g. a stale
+    // frontend cohort selection left over from earlier in the session. A
+    // focused practice drill on one named concept should never silently get
+    // swapped for a broad cohort-grounded interview. ----
+    if (cohortCandidateKey && !practiceFocus) {
       const allCohort = loadCohortCandidates();
       const cohortCandidate = allCohort[cohortCandidateKey];
       if (!cohortCandidate) return res.status(400).json({ error: 'Unknown cohortCandidateKey' });
@@ -919,11 +928,12 @@ app.post('/api/interview/start', async (req, res) => {
         ? buildCandidateContextWithGithub(cohortCandidate, githubContext)
         : buildCandidateContext(cohortCandidate);
       const systemPrompt = buildCohortSystemPrompt(candidateCtx, persona, experience);
+      const focusDay = pickFocusDay(cohortCandidate);
 
       const tLlmStart = Date.now();
       const raw = await callLLM(
         systemPrompt,
-        buildCohortFirstQuestionPrompt(candidateCtx, persona, experience),
+        buildCohortFirstQuestionPrompt(candidateCtx, persona, experience, !!githubContext, focusDay),
         { maxOutputTokens: 250, attemptTimeoutMs: 5000, budgetMs: 4500 }
       );
       const llmMs = Date.now() - tLlmStart;
@@ -1477,6 +1487,25 @@ function buildCandidateContextWithGithub(candidate, githubContext) {
   };
 }
 
+// ---- Picks which curriculum day to open the interview on, RANDOMLY among
+// the candidate's priority days (struggled attempts, then skipped days),
+// falling back to any day if neither exists. Previously the LLM was just
+// told to "prefer" the top priority day, which — combined with a fixed,
+// unchanging candidate profile — made it pick the exact same day (and often
+// near-identical phrasing) on every single session start for that
+// candidate. Choosing the day server-side and instructing the model to open
+// on THAT specific day guarantees session-to-session variety even when the
+// candidate's underlying mission data never changes. ----
+function pickFocusDay(candidate) {
+  const missions = (candidate && candidate.missions) || [];
+  const struggled = missions.filter(m => !m.skipped && typeof m.attempts === 'number' && m.attempts >= 3).map(m => m.day);
+  const skipped = missions.filter(m => m.skipped).map(m => m.day);
+  const priorityPool = [...struggled, ...skipped];
+  const pool = priorityPool.length ? priorityPool : missions.map(m => m.day);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function buildSpecSystemPrompt(candidateCtx) {
   return `You are an AI technical interviewer for a 31-day AI/ML engineering cohort ("${loadCurriculum().cohort}"). You conduct a structured, conversational, multi-turn interview grounded in the candidate's ACTUAL learning journey from the cohort — not generic textbook trivia.
 
@@ -1636,16 +1665,17 @@ function buildFullInterviewSystemPrompt(candidateCtx) {
 ${candidateCtx.text}
 
 RULES:
-1. Every conversational question must trace back to a specific day/topic from the curriculum record above, the same way a normal cohort-grounded interview would.
+1. Question source priority: if GitHub projects are listed above, weave in at least 2-3 questions grounded in a SPECIFIC repo/file/design decision from those projects — this is the strongest personalization signal and must not be ignored. Otherwise, every conversational question must trace back to a specific day/topic from the curriculum record above, the same way a normal cohort-grounded interview would.
 2. Ask at least ${FULL_MIN_QUESTIONS} conversational questions across at least ${FULL_MIN_DAYS} distinct curriculum days before ending.
 3. Exactly once during the interview — after at least ${FULL_MIN_QUESTIONS_BEFORE_CODING} conversational questions have been asked, whenever feels like a natural point (e.g. after establishing a baseline, before going deeper) — you may hand off to a DSA/coding round by setting "requestCoding": true. When you do this, keep "reply" to a short one-sentence transition line (e.g. "Let's switch gears — I'd like to see you work through a coding problem.") and do not ask a conversational question in that same turn.
 4. Never request the coding round more than once. You will be told in the prompt if it has already happened.
-5. Adapt difficulty to how well the candidate answers.
-6. Be conversational: one question at a time, briefly acknowledge the previous answer before moving on. Do not lecture.
-7. Only end (done:true) once the minimum questions/days requirement is met AND you have enough signal for a fair combined evaluation.
+5. ADAPTIVE DIFFICULTY (structural, not just a vibe): after every candidate answer, score it via "verdict"/"competence"/"confidence" and set "nextDifficulty" (1-5) for your NEXT question — raise it after a strong answer, lower it after a weak one, hold steady after a partial one. Start at difficulty 2.
+6. NO REPETITION: before choosing your next question, check the conversation above — do not re-ask a day/topic you've already asked about UNLESS it's a direct, escalating follow-up on the exact same thread the candidate just answered. Prefer a day/topic not yet covered.
+7. Be conversational: one question at a time, briefly acknowledge the previous answer before moving on (this acknowledgement is separate from "evidenceFeedback" below — keep "reply" natural and spoken-sounding). Do not lecture.
+8. Only end (done:true) once the minimum questions/days requirement is met AND you have enough signal for a fair combined evaluation.
 
 Reply with STRICT JSON only, no markdown fences, in exactly this shape:
-{"reply": "<what you say to the candidate>", "done": <true|false>, "dayCovered": <curriculum day number this question is grounded in, or null>, "requestCoding": <true|false>}`;
+{"reply": "<what you say to the candidate>", "done": <true|false>, "dayCovered": <curriculum day number this question is grounded in, or null>, "requestCoding": <true|false>, "verdict": "correct"|"partial"|"incorrect"|null, "competence": <0-100 integer, or null on the very first turn>, "confidence": <0-100 integer, or null on the very first turn>, "nextDifficulty": <1-5 integer>, "evidenceFeedback": "<ONE short sentence on the answer just given, or empty string on the very first turn>"}`;
 }
 
 app.post('/api/interview/full', async (req, res) => {
@@ -1665,11 +1695,25 @@ app.post('/api/interview/full', async (req, res) => {
       const candidateCtx = githubContext
         ? buildCandidateContextWithGithub(candidate, githubContext)
         : buildCandidateContext(candidate);
+
+      // ---- Wire in this app's own cross-session RAG memory (past real
+      // interview performance for this candidate, if any) — previously this
+      // mode only used the static cohort/curriculum JSON and never looked at
+      // prior sessions the way the main voice-room flow does. ----
+      const memberName = (candidate.member || {}).name || cohortCandidateKey;
+      const ragKey = slugKey(memberName);
+      const ragTopic = (candidate.member || {}).jobRole || 'technical interview';
+      let crossMemory = { items: [], dayCount: 0 };
+      try { crossMemory = await retrieveCrossDayMemory(ragKey, ragTopic, 3); } catch (e) { console.error('[full] cross-day memory lookup failed:', e.message); }
+      const memoryText = formatMemoryContext(crossMemory);
+      if (memoryText) candidateCtx.text = candidateCtx.text + '\n\n' + memoryText;
+
       session = {
         candidateCtx,
         systemPrompt: buildFullInterviewSystemPrompt(candidateCtx),
         turns: [],
         coveredDays: new Set(),
+        difficulty: 2,
         codingInserted: false,
         codingResult: null,
         createdAt: Date.now(),
@@ -1678,17 +1722,21 @@ app.post('/api/interview/full', async (req, res) => {
       };
       fullSessions.set(sessionId, session);
 
+      const focusDay = pickFocusDay(candidate);
       const raw = await callLLM(
         session.systemPrompt,
-        'Begin the interview now. Greet the candidate briefly by name, then ask your first question, grounded in one of the specific curriculum days listed above.'
+        (githubContext
+          ? 'Begin the interview now. Greet the candidate briefly by name, then ask your first question, grounded in a SPECIFIC repo or design decision from the GitHub projects listed above (this takes priority over generic curriculum-day questions since it is the strongest personalization signal). Phrase this opening question freshly in your own words — do not reuse a stock or generic phrasing pattern. This is the opening turn, so verdict/competence/confidence/evidenceFeedback should be null/empty and nextDifficulty should be 2.'
+          : `Begin the interview now. Greet the candidate briefly by name, then ask your first question, grounded specifically in ${focusDay ? `Day ${focusDay}` : 'one of the specific curriculum days listed above'}. Phrase this opening question freshly in your own words — do not reuse a stock or generic phrasing pattern. This is the opening turn, so verdict/competence/confidence/evidenceFeedback should be null/empty and nextDifficulty should be 2.`)
       );
       const parsed = safeParseJSON(raw) || {
         reply: `Welcome${(candidate.member || {}).name ? ', ' + candidate.member.name : ''}. Let's start with one of the topics from your cohort — walk me through it in your own words.`,
         done: false, dayCovered: (candidateCtx.availableDays[0] || null), requestCoding: false
       };
-      session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+      session.difficulty = clamp(parsed.nextDifficulty, 1, 5, 2);
+      session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered, difficulty: session.difficulty });
       if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
-      return res.json({ reply: parsed.reply, done: false, requestCoding: false });
+      return res.json({ reply: parsed.reply, done: false, requestCoding: false, difficulty: session.difficulty });
     }
 
     // ---- Already finished — respond idempotently instead of erroring ----
@@ -1705,19 +1753,22 @@ app.post('/api/interview/full', async (req, res) => {
       session.codingInserted = true;
       session.codingResult = codingResult;
       const problemTitle = (codingResult.problem && codingResult.problem.title) || 'the coding problem';
+      const problemDesc = (codingResult.problem && codingResult.problem.description) || '';
+      const submittedCode = String(codingResult.candidateCode || '').slice(0, 3000); // bounded, but the actual code — not just a title
       session.turns.push({
         role: 'system',
-        text: `[Coding round completed. Problem: "${problemTitle}". Interviewer review — correctness: ${codingResult.correctness || 'n/a'}; complexity: ${codingResult.complexityAnalysis || 'n/a'}; feedback: ${codingResult.feedback || 'n/a'}]`
+        text: `[Coding round completed. Problem: "${problemTitle}"${problemDesc ? ' — ' + problemDesc : ''}.\nCandidate's submitted code:\n${submittedCode || '(not captured)'}\n\nAutomated reviewer notes — correctness: ${codingResult.correctness || 'n/a'}; complexity: ${codingResult.complexityAnalysis || 'n/a'}; feedback: ${codingResult.feedback || 'n/a'}${codingResult.followUpQuestion ? `; suggested follow-up angle: ${codingResult.followUpQuestion}` : ''}]`
       });
       const raw = await callLLM(
         session.systemPrompt,
-        `Conversation so far:\n${transcriptOf(session)}\n\nThe coding round is now complete (see above) — briefly acknowledge it in one sentence, then continue with your next grounded conversational question. Do not request the coding round again (already done). Reply with STRICT JSON per the schema, "requestCoding" must be false.`
+        `Conversation so far:\n${transcriptOf(session)}\n\nThe coding round is now complete (see the candidate's actual submitted code above, not just a summary) — briefly acknowledge it in one sentence, then ask ONE follow-up question that is SPECIFICALLY about their code: e.g. why they chose that approach, the time/space complexity of their exact solution, an edge case their code might miss, or how they'd change it for a much larger input. Do NOT ask a generic curriculum-day question this turn — this turn's question must reference their actual code. Do not request the coding round again (already done). This turn does not evaluate a PRIOR conversational answer (the code was already scored by the automated reviewer above), so verdict/competence/confidence/evidenceFeedback should be null/empty and nextDifficulty should stay at ${session.difficulty}. Reply with STRICT JSON per the schema, "requestCoding" must be false.`
       );
-      const parsed = safeParseJSON(raw) || { reply: 'Nice work on that — let\'s continue.', done: false, dayCovered: null, requestCoding: false };
+      const parsed = safeParseJSON(raw) || { reply: 'Nice work on that — walk me through why you chose that approach.', done: false, dayCovered: null, requestCoding: false };
       parsed.requestCoding = false; // guard: already inserted, force off regardless of what the model said
-      session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+      session.difficulty = clamp(parsed.nextDifficulty, 1, 5, session.difficulty);
+      session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered, difficulty: session.difficulty });
       if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
-      return res.json({ reply: parsed.reply, done: false, requestCoding: false });
+      return res.json({ reply: parsed.reply, done: false, requestCoding: false, difficulty: session.difficulty });
     }
 
     // ---- 3) Normal conversation turn ----
@@ -1733,19 +1784,19 @@ app.post('/api/interview/full', async (req, res) => {
     const codingEligible = !session.codingInserted && questionCount >= FULL_MIN_QUESTIONS_BEFORE_CODING;
 
     const userPrompt = `Conversation so far:\n${transcript}\n\n` +
-      `Questions asked so far: ${questionCount}. Distinct curriculum days covered so far: ${daysCoveredCount} (${[...session.coveredDays].join(', ') || 'none yet'}).\n` +
+      `Current difficulty: ${session.difficulty}/5. Questions asked so far: ${questionCount}. Distinct curriculum days covered so far: ${daysCoveredCount} (${[...session.coveredDays].join(', ') || 'none yet'}).\n` +
       (session.codingInserted
         ? 'The DSA/coding round has ALREADY happened this interview — do not request it again.\n'
         : (codingEligible
-            ? 'You MAY set "requestCoding": true now if this feels like a natural moment to hand off to the DSA/coding round — when you do, keep "reply" to a short one-sentence transition line and do not ask a conversational question in this same turn.\n'
+            ? 'You MAY set "requestCoding": true now if this feels like a natural moment to hand off to the DSA/coding round — when you do, keep "reply" to a short one-sentence transition line, do not ask a conversational question in this same turn, and still score the answer just given (verdict/competence/confidence/evidenceFeedback) since it was a real answer.\n'
             : `Do not request the coding round yet (only ${questionCount} question(s) asked so far, minimum ${FULL_MIN_QUESTIONS_BEFORE_CODING}) — ask another grounded conversational question.\n`)) +
       (minimumMet
         ? 'The minimum requirement (questions + days) has been met — you may end (done:true) now if you have enough signal, or continue.'
         : 'The minimum requirement (questions + days) has NOT been met yet — do not end the interview yet.') +
-      '\n\nReply with STRICT JSON only per the schema.';
+      '\n\nFirst, evaluate the candidate\'s answer just given (verdict/competence/confidence/evidenceFeedback/nextDifficulty). Then reply with STRICT JSON only per the schema.';
 
     const raw = await callLLM(session.systemPrompt, userPrompt);
-    const parsed = safeParseJSON(raw) || { reply: 'Could you elaborate a bit more on that?', done: false, dayCovered: null, requestCoding: false };
+    const parsed = safeParseJSON(raw) || { reply: 'Could you elaborate a bit more on that?', done: false, dayCovered: null, requestCoding: false, nextDifficulty: session.difficulty };
 
     // Guard rails — never trust the model's flags blindly, mirrors the
     // enforcement pattern already used by the /api/interview spec endpoint.
@@ -1756,11 +1807,34 @@ app.post('/api/interview/full', async (req, res) => {
         parsed.reply = 'Let\'s go a bit deeper — tell me more about another part of your cohort work.';
       }
     }
+    session.difficulty = clamp(parsed.nextDifficulty, 1, 5, session.difficulty);
+
+    // Record this turn's evaluation (candidate's message + the model's scoring
+    // of it) so the final combined report can use real structured data instead
+    // of re-deriving everything from raw transcript text at the very end.
+    session.turns[session.turns.length - 1].evaluation = {
+      verdict: parsed.verdict || null,
+      competence: (typeof parsed.competence === 'number') ? clamp(parsed.competence, 0, 100, null) : null,
+      confidence: (typeof parsed.confidence === 'number') ? clamp(parsed.confidence, 0, 100, null) : null,
+      evidenceFeedback: parsed.evidenceFeedback || '',
+      difficultyAtTime: session.difficulty
+    };
 
     if (parsed.done) {
+      // Fold the structured per-turn scores (now that we actually capture them)
+      // into the final-report prompt as a compact table, alongside the raw
+      // transcript — gives the evaluator real signal instead of re-reading prose.
+      const scoredTurns = session.turns.filter(t => t.role === 'user' && t.evaluation && t.evaluation.verdict);
+      const scoreTable = scoredTurns.length
+        ? scoredTurns.map((t, i) => `Turn ${i + 1}: verdict=${t.evaluation.verdict}, competence=${t.evaluation.competence}, confidence=${t.evaluation.confidence}, difficulty=${t.evaluation.difficultyAtTime}`).join('\n')
+        : '(no per-turn scores captured)';
+      const avgCompetence = scoredTurns.length
+        ? Math.round(scoredTurns.reduce((a, t) => a + (t.evaluation.competence || 0), 0) / scoredTurns.length)
+        : null;
+
       const feedbackRaw = await callLLM(
         'You are an interview evaluator producing a COMBINED report for a conversational interview plus a DSA coding round. Reply with strict JSON only, no markdown fences.',
-        `Conversational transcript:\n${transcript}\n\nCandidate curriculum context:\n${session.candidateCtx.text}\n\n` +
+        `Conversational transcript:\n${transcript}\n\nPer-turn scores captured during the interview:\n${scoreTable}${avgCompetence != null ? `\nAverage competence across turns: ${avgCompetence}%` : ''}\n\nCandidate curriculum context:\n${session.candidateCtx.text}\n\n` +
         (session.codingResult
           ? `Coding round result:\n${JSON.stringify(session.codingResult)}\n\n`
           : 'No coding round occurred in this interview (interview ended before the model chose to hand off).\n\n') +
@@ -1772,9 +1846,9 @@ app.post('/api/interview/full', async (req, res) => {
       return res.json({ reply: parsed.reply || 'Thank you — that concludes the interview.', done: true, feedback });
     }
 
-    session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered });
+    session.turns.push({ role: 'assistant', text: parsed.reply, dayCovered: parsed.dayCovered, difficulty: session.difficulty });
     if (parsed.dayCovered) session.coveredDays.add(parsed.dayCovered);
-    return res.json({ reply: parsed.reply, done: false, requestCoding: !!parsed.requestCoding });
+    return res.json({ reply: parsed.reply, done: false, requestCoding: !!parsed.requestCoding, difficulty: session.difficulty, dayCovered: parsed.dayCovered || null, daysCoveredCount: session.coveredDays.size, verdict: parsed.verdict || null });
 
   } catch (err) {
     console.error('[POST /api/interview/full]', err);
