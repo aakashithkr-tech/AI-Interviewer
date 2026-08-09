@@ -166,6 +166,96 @@ function slugKey(name) {
   return (name || 'guest').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'guest';
 }
 
+// ---------- Demo account seed data ----------
+// Gives the "Aakashi Thakur" demo login a believable interview history right
+// out of the box (Dashboard "Recent Interviews", readiness trend, and the
+// History page all read from this same store) instead of showing only
+// whatever the presenter has personally run through the live demo.
+// Runs once at startup and is idempotent — it checks for a "demo-seed-"
+// sessionId marker so it never duplicates entries on server restarts.
+function buildDemoSession(sessionIdSuffix, topic, daysAgo, scores, questions) {
+  const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+  const timeline = questions.map((q, i) => ({
+    qNum: i + 1, question: q.q, answer: q.a, verdict: q.verdict,
+    topicTag: q.tag, difficulty: q.difficulty, evidenceFeedback: q.feedback,
+    crossDayLink: false, nextAction: q.next || null
+  }));
+  const byTag = new Map();
+  timeline.forEach(t => {
+    if (!byTag.has(t.topicTag)) byTag.set(t.topicTag, []);
+    byTag.get(t.topicTag).push(t);
+  });
+  const concepts = [...byTag.entries()].map(([tag, turns]) => {
+    const avgComp = Math.round(turns.reduce((a, t) => a + (t.verdict === 'correct' ? 85 : t.verdict === 'partial' ? 60 : 35), 0) / turns.length);
+    return { tag, summary: `${tag} (avg competence ${avgComp}%, ${turns.length} question(s))`, avgCompetence: avgComp, embedding: null };
+  });
+  const skillRadar = [...byTag.entries()].map(([tag, turns]) => {
+    const s = Math.round(turns.reduce((a, t) => a + (t.verdict === 'correct' ? 85 : t.verdict === 'partial' ? 60 : 35), 0) / turns.length);
+    return { tag, score: s, stars: Math.round(s / 20 * 2) / 2 };
+  });
+  const weakTopics = timeline.filter(t => t.verdict !== 'correct').map(t => t.topicTag);
+  const uniqueWeak = [...new Set(weakTopics)];
+  const report = {
+    sessionId: 'demo-seed-' + sessionIdSuffix,
+    topic, persona: 'friendly', scores,
+    recommendation: scores.hiringProbability >= 80 ? 'Strong Hire' : scores.hiringProbability >= 65 ? 'Hire' : scores.hiringProbability >= 45 ? 'Leaning No Hire' : 'No Hire',
+    timeline, skillRadar,
+    interviewerNotes: questions.filter(q => q.note).map((q, i) => ({ qNum: i + 1, note: q.note, topicTag: q.tag })),
+    crossDayLinksUsed: 0, dayNumber: 1,
+    revisionPlan: uniqueWeak.map(tag => ({ topic: tag, estimatedMinutes: 15 })),
+    totalEstimatedMinutes: uniqueWeak.length * 15,
+    practiceMode: false, practiceResult: null
+  };
+  return {
+    sessionId: 'demo-seed-' + sessionIdSuffix, topic, date, scores, concepts,
+    practiceMode: false, practiceFocus: null, report
+  };
+}
+
+function seedDemoHistory() {
+  const store = loadStore();
+  const key = slugKey('Aakashi Thakur');
+  if (!store[key]) store[key] = { name: 'Aakashi Thakur', sessions: [] };
+  const already = store[key].sessions.some(s => (s.sessionId || '').startsWith('demo-seed-'));
+  if (already) return;
+
+  const demoSessions = [
+    buildDemoSession('1', 'Web Development', 8,
+      { hiringProbability: 78, confidence: 74, communication: 79, problemSolving: 76, competence: 80 },
+      [
+        { q: 'Explain the difference between let, const, and var in JavaScript.', a: 'Covered scoping and hoisting differences clearly.', verdict: 'correct', tag: 'JavaScript Fundamentals', difficulty: 2, feedback: 'Clear, accurate explanation with a good example.' },
+        { q: 'How does the virtual DOM improve rendering performance in React?', a: 'Explained diffing and batched updates.', verdict: 'correct', tag: 'React', difficulty: 3, feedback: 'Solid understanding of reconciliation.' },
+        { q: 'What is the CSS box model?', a: 'Described content, padding, border, margin.', verdict: 'correct', tag: 'CSS', difficulty: 1, feedback: 'Textbook-accurate answer.' },
+        { q: 'How would you optimize a slow-loading web page?', a: 'Mentioned lazy loading and image compression, missed code splitting.', verdict: 'partial', tag: 'Performance', difficulty: 3, feedback: 'Good instincts but missed bundle-level optimizations.', next: 'Review code-splitting and lazy-loading routes.', note: 'Strong on assets, weaker on JS bundle strategy.' },
+        { q: 'Explain how async/await works under the hood.', a: 'Connected it correctly to promises and the event loop.', verdict: 'correct', tag: 'JavaScript Fundamentals', difficulty: 3, feedback: 'Confident, technically sound answer.' },
+        { q: 'What are React hooks and why were they introduced?', a: 'Explained useState/useEffect and functional component motivation.', verdict: 'correct', tag: 'React', difficulty: 2, feedback: 'Well-structured explanation.' }
+      ]),
+    buildDemoSession('2', 'Data Structures & Algorithms', 5,
+      { hiringProbability: 72, confidence: 68, communication: 70, problemSolving: 74, competence: 71 },
+      [
+        { q: 'Explain how a hash table resolves collisions.', a: 'Mentioned chaining but was fuzzy on open addressing.', verdict: 'partial', tag: 'hashing', difficulty: 3, feedback: 'Partial understanding — open addressing wasn\u2019t clear.', next: 'Revisit open addressing and probing strategies.', note: 'Confused linear probing with chaining.' },
+        { q: 'Compare arrays vs linked lists for insertion-heavy workloads.', a: 'Correctly reasoned about O(1) insertion for linked lists.', verdict: 'correct', tag: 'arrays vs linked lists', difficulty: 2, feedback: 'Good trade-off reasoning.' },
+        { q: 'Reverse a doubly linked list — walk through your approach.', a: 'Described the pointer-swapping approach accurately.', verdict: 'correct', tag: 'doubly linked lists', difficulty: 3, feedback: 'Clean, correct approach.' },
+        { q: 'What\u2019s the time complexity of your hashing-based solution?', a: 'Said O(n) but couldn\u2019t justify amortized analysis.', verdict: 'incorrect', tag: 'hashing', difficulty: 4, feedback: 'Answer was close but reasoning was incomplete.', next: 'Practice amortized time-complexity analysis.' },
+        { q: 'When would you choose a linked list over an array?', a: 'Gave frequent-insertion/deletion scenario correctly.', verdict: 'correct', tag: 'data structures basics', difficulty: 1, feedback: 'Accurate, well-reasoned.' }
+      ]),
+    buildDemoSession('3', 'Behavioral', 3,
+      { hiringProbability: 81, confidence: 83, communication: 85, problemSolving: 74, competence: 78 },
+      [
+        { q: 'Tell me about a time you disagreed with a teammate.', a: 'Used a structured STAR-style answer with a clear resolution.', verdict: 'correct', tag: 'Communication', difficulty: 2, feedback: 'Well-structured, specific, and reflective.' },
+        { q: 'Describe a project where you had to learn something new quickly.', a: 'Gave a concrete example with a clear learning process.', verdict: 'correct', tag: 'Adaptability', difficulty: 2, feedback: 'Confident delivery, good specificity.' },
+        { q: 'How do you handle tight deadlines?', a: 'Explained prioritization but answer ran long and lost focus.', verdict: 'partial', tag: 'Communication', difficulty: 2, feedback: 'Good content, could be more concise.', next: 'Practice trimming answers to the core STAR points.', note: 'Answer was thorough but over-long — tighten delivery.' },
+        { q: 'Tell me about a time you received difficult feedback.', a: 'Reflected maturely and described concrete behavior change.', verdict: 'correct', tag: 'Growth Mindset', difficulty: 2, feedback: 'Genuine, self-aware answer.' }
+      ])
+  ];
+
+  // Oldest first, so they land before any real sessions chronologically.
+  store[key].sessions = [...demoSessions, ...store[key].sessions];
+  saveStore(store);
+  console.log('[seed] demo history added for Aakashi Thakur');
+}
+seedDemoHistory();
+
 async function embedText(text) {
   if (!API_KEYS.length) return null;
   for (const key of API_KEYS) {
