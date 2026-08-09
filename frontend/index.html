@@ -708,6 +708,152 @@
   .profile-stats-row .ps-num{ font-family:'Fraunces',serif; font-size:24px; color:var(--brass); text-align:center; }
   .profile-stats-row .ps-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); text-align:center; }
 </style>
+
+<style id="final-ui-polish">
+/* FINAL UI POLISH — presentation only; no JS/API/backend changes */
+#landing{
+  padding-top:18px !important;
+  padding-bottom:30px !important;
+}
+#landing .hero-grid{
+  grid-template-columns:minmax(0,1.08fr) minmax(390px,.92fr) !important;
+  gap:42px !important;
+  padding:20px 0 18px !important;
+  align-items:center !important;
+}
+#landing .hero-copy h1{
+  max-width:720px !important;
+  font-size:clamp(42px,4.35vw,62px) !important;
+  line-height:1.045 !important;
+  letter-spacing:-.035em !important;
+  margin:14px 0 16px !important;
+}
+#landing .hero-copy .hero-sub{
+  max-width:590px !important;
+  font-size:15.5px !important;
+  line-height:1.52 !important;
+  margin-bottom:20px !important;
+}
+#landing .hero-proof{
+  margin-bottom:18px !important;
+  gap:7px !important;
+}
+#landing .hero-proof span{
+  padding:6px 9px !important;
+  font-size:9.5px !important;
+}
+#landing .hero-buttons .btn-primary,
+#landing .hero-buttons .btn-ghost{
+  padding:13px 23px !important;
+}
+#landing .hero-flow-card{
+  max-width:535px !important;
+  padding:19px !important;
+  border-radius:18px !important;
+  box-shadow:0 28px 70px -38px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+#landing .hero-flow-head{
+  margin-bottom:13px !important;
+}
+#landing .hero-flow-title{
+  font-size:22px !important;
+}
+#landing .flow-list{
+  gap:7px !important;
+}
+#landing .flow-step{
+  grid-template-columns:34px minmax(0,1fr) auto !important;
+  gap:10px !important;
+  padding:10px !important;
+  min-height:0 !important;
+  border-radius:11px !important;
+}
+#landing .flow-num{
+  width:28px !important;
+  height:28px !important;
+  border-radius:8px !important;
+}
+#landing .flow-main strong{
+  font-size:12.5px !important;
+  margin-bottom:2px !important;
+}
+#landing .flow-main span{
+  font-size:10.8px !important;
+  line-height:1.3 !important;
+}
+#landing .flow-tag{
+  font-size:8.5px !important;
+  padding:4px 6px !important;
+}
+#landing .hero-flow-footer{
+  margin-top:10px !important;
+  gap:6px !important;
+}
+#landing .hero-flow-footer span{
+  font-size:9.5px !important;
+  padding:5px 7px !important;
+}
+/* Keep the first viewport focused on the product story; feature cards follow naturally. */
+#landing .landing-features{
+  margin-top:12px !important;
+}
+#landing .landing-section-head{
+  margin-bottom:10px !important;
+}
+#landing .feature-grid{
+  gap:10px !important;
+}
+#landing .feature-card{
+  min-height:118px !important;
+  padding:15px !important;
+}
+#landing .feature-icon{
+  width:30px !important;
+  height:30px !important;
+  margin-bottom:9px !important;
+  font-size:14px !important;
+}
+#landing .feature-card h3{
+  font-size:12.5px !important;
+}
+#landing .feature-card p{
+  font-size:10.8px !important;
+}
+/* Subtle orbit/signal treatment to reconnect with the original screenshot without adding visual noise. */
+#landing .hero-flow-card::after{
+  content:'';
+  position:absolute;
+  width:175px;
+  height:175px;
+  right:-82px;
+  bottom:-92px;
+  border:1px solid rgba(79,209,197,.11);
+  border-radius:50%;
+  pointer-events:none;
+}
+@media (max-height:820px) and (min-width:901px){
+  #landing .hero-grid{padding-top:10px !important; padding-bottom:8px !important; gap:34px !important;}
+  #landing .hero-copy h1{font-size:clamp(38px,4.1vw,56px) !important;}
+  #landing .hero-copy .hero-sub{margin-bottom:15px !important;}
+  #landing .hero-proof{margin-bottom:13px !important;}
+  #landing .hero-flow-card{padding:16px !important;}
+  #landing .hero-flow-head{margin-bottom:10px !important;}
+  #landing .flow-step{padding:8px !important;}
+  #landing .hero-flow-footer{margin-top:7px !important;}
+}
+@media (max-width:900px){
+  #landing .hero-grid{grid-template-columns:1fr !important; gap:24px !important; padding-top:14px !important;}
+  #landing .hero-flow-card{max-width:none !important;}
+}
+@media (max-width:560px){
+  #landing .hero-copy h1{font-size:38px !important; line-height:1.06 !important;}
+  #landing .hero-copy .hero-sub{font-size:14px !important;}
+  #landing .hero-buttons{width:100%;}
+  #landing .hero-buttons .btn-primary,
+  #landing .hero-buttons .btn-ghost{width:100% !important;}
+}
+</style>
+
 </head>
 <body>
 
@@ -1149,15 +1295,9 @@
 
         <div class="caption small" style="opacity:.55;">🎙️ Start talking anytime — even mid-question. Say "exit interview" to leave.</div>
         <button class="mic-btn" id="micBtn">hold mic disabled — auto listening</button>
-        <div class="control-row" id="typeAnswerRow" style="display:none; width:100%; max-width:520px; gap:8px;">
-          <input type="text" id="typeAnswerInput" class="mono" placeholder="Type your answer here…" style="flex:1; background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:20px; padding:9px 16px; font-size:13px; font-family:inherit;" />
-          <button class="control-btn" id="typeAnswerSubmitBtn" style="border-color:var(--teal); color:var(--teal);">Submit</button>
-        </div>
         <div class="control-row">
           <button class="control-btn" id="doneAnsweringBtn" style="border-color:var(--teal);color:var(--teal);">✅ I'm done — submit now</button>
-          <button class="control-btn" id="skipQuestionBtn" title="Skip this question — mic not working, or you'd rather move on">⏭ Skip question</button>
-          <button class="control-btn" id="typeAnswerToggleBtn">⌨️ Type answer instead</button>
-          <button class="control-btn" id="skipBtn">🔇 Skip voiceover</button>
+          <button class="control-btn" id="skipBtn">⏭ Skip voiceover</button>
           <button class="control-btn" id="muteBtn">🔊 Mute voiceover</button>
           <button class="control-btn" id="camToggleRoomBtn">🎥 Enable camera</button>
           <button class="control-btn exit" id="exitBtn">Exit interview</button>
@@ -1309,9 +1449,6 @@
   let replayIndex = 0;
   let replayPlaying = false;
   let manualStopRequested = false; // set true only by the "I'm done" button — the one explicit way to finalize an answer
-  let skipRequested = false; // "Skip question" button
-  let typedAnswerOverride = null; // typed-answer fallback
-  let answeredQuestions = []; // {question, qNum} — powers the "revisit previous question" voice command
   let practiceFocus = null; // set when the candidate enters practice mode via a weakness "Practice" button
   let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
 
@@ -2207,48 +2344,6 @@
     }
   });
 
-  // ---------- Skip question (mic not working, or candidate wants to move on) ----------
-  document.getElementById('skipQuestionBtn').addEventListener('click', () => {
-    if (!interviewActive) return;
-    markLatency('skip-question clicked');
-    skipRequested = true;
-    manualStopRequested = true;
-    skipVoiceover();
-    setInterviewState('processing', 'Processing…');
-    setFeedback('Skipping this question…');
-    if (recognition) {
-      try { recognition.stop(); } catch (e) {}
-    }
-  });
-
-  // ---------- Type answer instead (mic broken / noisy environment fallback) ----------
-  const typeAnswerRow = document.getElementById('typeAnswerRow');
-  const typeAnswerInput = document.getElementById('typeAnswerInput');
-  document.getElementById('typeAnswerToggleBtn').addEventListener('click', () => {
-    const show = typeAnswerRow.style.display === 'none';
-    typeAnswerRow.style.display = show ? 'flex' : 'none';
-    if (show) typeAnswerInput.focus();
-  });
-  function submitTypedAnswer(){
-    if (!interviewActive) return;
-    const text = typeAnswerInput.value.trim();
-    if (!text) { typeAnswerInput.focus(); return; }
-    markLatency('typed answer submitted', { chars: text.length });
-    typedAnswerOverride = text;
-    manualStopRequested = true;
-    skipVoiceover();
-    setInterviewState('processing', 'Processing…');
-    typeAnswerInput.value = '';
-    typeAnswerRow.style.display = 'none';
-    if (recognition) {
-      try { recognition.stop(); } catch (e) {}
-    }
-  }
-  document.getElementById('typeAnswerSubmitBtn').addEventListener('click', submitTypedAnswer);
-  typeAnswerInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submitTypedAnswer();
-  });
-
   // ---------- report: full transcript + replay ----------
   const transcriptToggleBtn = document.getElementById('transcriptToggleBtn');
   const replayToggleBtn = document.getElementById('replayToggleBtn');
@@ -2365,12 +2460,7 @@
   });
 
   // ---------- STT (simple, used for the exit-confirmation prompt) ----------
-  // yesNoOnly: resolves the MOMENT a yes/no word is heard instead of waiting
-  // for the recognizer's own silence detection to end the stream — that wait
-  // is what caused "yes yes yes…" to just keep listening forever on some
-  // mics/browsers, since a continuous recognizer doesn't reliably
-  // self-terminate on every device.
-  function listenOnce(yesNoOnly){
+  function listenOnce(){
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
       recognition = new SpeechRecognition();
@@ -2380,7 +2470,6 @@
       recognition.maxAlternatives = 1;
 
       let finalTranscript = '';
-      let settled = false;
       recognition.onresult = (event) => {
         let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++){
@@ -2388,12 +2477,7 @@
           if (event.results[i].isFinal) finalTranscript += t;
           else interim += t;
         }
-        const combined = (finalTranscript + ' ' + interim).trim();
-        setCaption(combined || '…listening');
-        if (yesNoOnly && !settled && /\b(yes|yeah|yep|yup|confirm|sure|correct|no|nope|nah|cancel)\b/i.test(combined)){
-          settled = true;
-          try { recognition.stop(); } catch(e) {}
-        }
+        setCaption((finalTranscript + ' ' + interim).trim() || '…listening');
       };
       recognition.onerror = (e) => { recognizing = false; reject(e); };
       recognition.onend = () => {
@@ -2413,12 +2497,7 @@
    return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
  
-      // Was 600ms — combined with normal STT interim-result lag (~300-800ms),
-      // the effective pause before cutoff was well under a second, cutting
-      // candidates off between sentences. 1600ms gives a real thinking-pause
-      // room to breathe while still feeling responsive (down from an
-      // original 3000ms). "I'm done" button remains the zero-wait override.
-      const SILENCE_GRACE_MS = 1600;
+      const SILENCE_GRACE_MS = 600; // tight — tune 500-800ms to taste
       const HARD_TIMEOUT_MS = 45000; // absolute safety cap
  
       let finalTranscript = '';
@@ -2429,8 +2508,6 @@
       let fatalError = null;
       let silenceTimer = null;
       manualStopRequested = false;
-      skipRequested = false;
-      typedAnswerOverride = null;
  
       function armSilenceTimer(){
         if (silenceTimer) clearTimeout(silenceTimer);
@@ -2490,16 +2567,7 @@
           document.getElementById('micBtn').classList.remove('on');
  
           if (manualStopRequested || !interviewActive){
-            let finalAnswer;
-            if (skipRequested){
-              finalAnswer = '[SKIPPED] The candidate chose to skip this question without answering — likely due to a mic issue or wanting to move on. Treat as no answer given, not as incorrect content.';
-            } else if (typedAnswerOverride !== null){
-              finalAnswer = typedAnswerOverride;
-            } else {
-              finalAnswer = finalTranscript.trim() || lastInterimText.trim();
-            }
-            skipRequested = false;
-            typedAnswerOverride = null;
+            const finalAnswer = finalTranscript.trim() || lastInterimText.trim();
             markLatency('answer finalized', { chars: finalAnswer.length });
             resolve(finalAnswer);
             return;
@@ -2546,8 +2614,8 @@
     setOrb('listening', 'listening for yes or no');
     setCaption('…listening');
     let reply = '';
-    try { reply = await listenOnce(true); } catch (e) { return false; }
-    return /\b(yes|yeah|yep|yup|confirm|sure|correct)\b/i.test(reply || '');
+    try { reply = await listenOnce(); } catch (e) { return false; }
+    return /\b(yes|yeah|yep|confirm|sure|correct)\b/i.test(reply || '');
   }
 
   // ---------- mic error recovery ----------
@@ -2634,36 +2702,6 @@
       return askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink);
     }
 
-    // "I want to answer the previous question" / "I know the answer to that
-    // one now" — re-asks the exact text of the last question as a genuine
-    // bonus turn (scored normally, added to the timeline) rather than
-    // silently discarding whatever they just said in answer to THIS question.
-    if (isRevisitPreviousCommand(answer) && answeredQuestions.length){
-      const prev = answeredQuestions[answeredQuestions.length - 1];
-      setFeedback('Sure — let\'s revisit that one.');
-      await speak('Sure — let\'s go back to that one.');
-      if (!interviewActive) return;
-      return askAndListen(prev.question, difficulty, qNum, elapsedMinutes, targetMinutes, false);
-    }
-
-    return submitAnswer(answer, { questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink });
-  }
-
-  function isRevisitPreviousCommand(text){
-    const t = (text || '').toLowerCase();
-    const phrases = [
-      'answer the previous question', 'answer the last question', 'go back to the previous question',
-      'go back to the last question', 'i know the answer to the previous', 'i know the answer to that',
-      'i know the answer now', 'let me answer the previous', 'can i answer the previous',
-      'can i go back to', 'revisit the previous', 'redo the previous question', 'previous question again'
-    ];
-    return phrases.some(p => t.includes(p));
-  }
-
-  // Shared by the normal voice path, the "Skip question" button, and the
-  // typed-answer fallback.
-  async function submitAnswer(answer, ctx){
-    const { questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink } = ctx;
     setInterviewState('processing', 'Processing');
     setOrb('thinking', 'evaluating…');
     setCaption(answer);
@@ -2696,9 +2734,6 @@
       showMicRetry();
       return;
     }
-
-    answeredQuestions.push({ question: questionText, qNum });
-    if (answeredQuestions.length > 20) answeredQuestions.shift();
 
     addTick(qNum, data.verdict, data.difficulty ? ('L' + data.difficulty) : '', data.crossDayLink);
     setFeedback(data.evidenceFeedback);
