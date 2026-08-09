@@ -3,10 +3,10 @@
 Started keeping this properly once I realized I'd never remember the order
 of everything otherwise. Rough chronological order, grouped loosely by
 what stretch of the build I was in. Some of these took multiple back-and-
-forth passes before I got what I wanted — I've tried to capture the actual
+forth passes before I got what I wanted, I've tried to capture the actual
 reasoning, not just the final clean version of the ask, because honestly
 the messy iteration is most of where the real thinking happened.
-
+Prompts below were largely drafted/refined with ChatGPT first — for architecture decisions, comparisons, and reasoning through tradeoffs — then handed to Claude for actual implementation, code generation, and iterative debugging inside the codebase. Where an entry below describes "asking for X," that reasoning pass often happened in ChatGPT before the resulting instruction was given to Claude to build. This log is a synthesized, chronological account of that combined process rather than a raw, single-tool transcript.
 ---
 
 ## Picking the direction
