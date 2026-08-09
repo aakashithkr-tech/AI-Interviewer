@@ -43,35 +43,9 @@
   .mono{font-family:'IBM Plex Mono',monospace;}
   a{ color:inherit; }
   ::selection{ background:var(--brass-dim); color:var(--brass); }
-
-  /* ===== SHARED PREMIUM GLASS-CARD LOOK (dashboard/studio/history/profile) ===== */
-  .glass-card{
-    background:
-      linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%),
-      var(--bg-panel);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
-    transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
-  }
-  .glass-card.hoverable:hover{
-    border-color:rgba(201,162,75,.4);
-    box-shadow:0 28px 70px -26px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px rgba(201,162,75,.12);
-    transform:translateY(-1px);
-  }
-
-  /* ---------- brand / nav ---------- */
-  .navbar{
-    width:100%; max-width:1180px;
-    display:flex; justify-content:space-between; align-items:center;
-    padding:22px 24px 0;
-  }
+  .navbar{ width:100%; max-width:1180px; display:flex; justify-content:space-between; align-items:center; padding:22px 24px 0; }
   .brand{ display:flex; align-items:center; gap:10px; }
-  .brand .mark{
-    width:26px; height:26px; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #3a3f4c, #12151c 70%);
-    border:1px solid var(--brass); box-shadow:0 0 10px rgba(201,162,75,.35);
-  }
+  .brand .mark{ width:26px; height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #3a3f4c, #12151c 70%); border:1px solid var(--brass); box-shadow:0 0 10px rgba(201,162,75,.35); }
   .brand .word{ font-family:'Fraunces',serif; font-weight:600; font-size:16px; letter-spacing:.01em; }
   .brand .tag{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--ink-faint); letter-spacing:.12em; text-transform:uppercase; border:1px solid var(--line); padding:2px 6px; border-radius:4px; margin-left:2px; }
   .nav-right{ display:flex; align-items:center; gap:14px; font-size:12px; color:var(--ink-dim); }
@@ -80,216 +54,82 @@
   .nav-right .dot.live{ background:var(--teal); box-shadow:0 0 8px var(--teal); animation:blink-dot 1.6s ease-in-out infinite; }
   @keyframes blink-dot{ 0%,100%{opacity:1;} 50%{opacity:.45;} }
   .avatar-chip{ display:flex; align-items:center; gap:8px; cursor:pointer; }
-  .avatar{
-    width:26px; height:26px; border-radius:50%; background:var(--brass); color:#1a1509;
-    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; font-family:'Inter',sans-serif;
-  }
+  .avatar{ width:26px; height:26px; border-radius:50%; background:var(--brass); color:#1a1509; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; font-family:'Inter',sans-serif; }
   .signout{ color:var(--ink-dim); text-decoration:none; font-size:12px; }
   .signout:hover{ color:var(--red); }
-
-  /* ---------- screens ---------- */
   .screen{ width:100%; max-width:1180px; padding:24px; flex:1; display:none; }
   .screen.active{ display:flex; flex-direction:column; }
-
-  /* ===== LOGIN ===== */
   #login{ align-items:center; justify-content:center; text-align:center; gap:22px; }
-  .login-card{
-    background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius);
-    padding:44px 40px; width:100%; max-width:400px; display:flex; flex-direction:column; gap:18px; align-items:center;
-    box-shadow:0 20px 60px -20px rgba(0,0,0,.5);
-  }
-  .login-mark{
-    width:52px; height:52px; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #3a3f4c, #12151c 70%);
-    border:1px solid var(--brass); box-shadow:0 0 20px rgba(201,162,75,.3);
-  }
+  .login-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:44px 40px; width:100%; max-width:400px; display:flex; flex-direction:column; gap:18px; align-items:center; box-shadow:0 20px 60px -20px rgba(0,0,0,.5); }
+  .login-mark{ width:52px; height:52px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #3a3f4c, #12151c 70%); border:1px solid var(--brass); box-shadow:0 0 20px rgba(201,162,75,.3); }
   #login h1{ font-family:'Fraunces',serif; font-weight:700; font-size:26px; margin:0; }
   #login .sub{ color:var(--ink-dim); font-size:13.5px; margin:-8px 0 4px; line-height:1.5; }
   .field-group{ display:flex; flex-direction:column; gap:8px; width:100%; text-align:left; }
   .field-group label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); }
-  input[type=text], input[type=email]{
-    background:var(--bg); border:1px solid var(--line); color:var(--ink);
-    border-radius:10px; padding:12px 14px; font-size:15px; font-family:inherit; width:100%;
-  }
+  input[type=text], input[type=email]{ background:var(--bg); border:1px solid var(--line); color:var(--ink); border-radius:10px; padding:12px 14px; font-size:15px; font-family:inherit; width:100%; }
   input[type=text]:focus, input[type=email]:focus{ outline:none; border-color:var(--brass); }
-  .btn-primary{
-    background:var(--brass); color:#1a1509; border:none; border-radius:10px;
-    padding:14px 32px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit;
-    transition:.15s; width:100%;
-  }
+  .btn-primary{ background:var(--brass); color:#1a1509; border:none; border-radius:10px; padding:14px 32px; font-size:15px; font-weight:600; cursor:pointer; font-family:inherit; transition:.15s; width:100%; }
   .btn-primary:hover{ filter:brightness(1.08); }
   .btn-primary:disabled{ opacity:.4; cursor:not-allowed; }
-  .btn-ghost{
-    background:none; border:1px solid var(--line); color:var(--ink-dim); border-radius:10px;
-    padding:12px 20px; font-size:13.5px; cursor:pointer; font-family:inherit; transition:.15s;
-  }
+  .btn-ghost{ background:none; border:1px solid var(--line); color:var(--ink-dim); border-radius:10px; padding:12px 20px; font-size:13.5px; cursor:pointer; font-family:inherit; transition:.15s; }
   .btn-ghost:hover{ border-color:var(--ink-dim); color:var(--ink); }
   .btn-ghost.on{ border-color:var(--teal); color:var(--teal); background:var(--teal-dim); }
   .demo-note{ font-size:11.5px; color:var(--ink-dim); line-height:1.5; }
   .warn{ color:var(--red); font-size:13px; max-width:440px; }
-
-  /* ===== WELCOME / DASHBOARD ===== */
-  #welcome, #dashboard, #studio, #history, #profile{ gap:32px; padding-top:36px; }
-  #welcome h1, #dashboard h1, #studio h1, #history h1, #profile h1{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(28px,4vw,42px); margin:0; }
-  #welcome .sub, #dashboard .sub, #studio .sub, #history .sub, #profile .sub{ color:var(--ink-dim); font-size:15px; margin-top:6px; }
-
-  /* Studio header gets its own treatment — an eyebrow pill + gradient title —
-     so it doesn't just repeat "Interview" right under the navbar's "Interview Room". */
-  .studio-kicker{
-    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
-    color:var(--teal); border:1px solid rgba(79,209,197,.32); background:var(--teal-dim);
-    padding:5px 12px; border-radius:20px; width:fit-content; display:inline-block; margin-bottom:14px;
-  }
-  .studio-title{
-    background:linear-gradient(100deg, var(--ink) 20%, var(--brass) 75%);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-  }
-  .returning-banner{
-    display:none; align-items:center; gap:16px;
-    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-left:3px solid var(--brass); border-radius:12px;
-    padding:18px 22px;
-    box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
-  }
+  #welcome{ gap:32px; padding-top:36px; }
+  #welcome h1{ font-family:'Fraunces',serif; font-weight:700; font-size:clamp(28px,4vw,42px); margin:0; }
+  #welcome .sub{ color:var(--ink-dim); font-size:15px; margin-top:6px; }
+  .returning-banner{ display:none; align-items:center; gap:16px; background:var(--bg-panel); border:1px solid var(--line); border-left:3px solid var(--brass); border-radius:10px; padding:16px 20px; }
   .returning-banner.show{ display:flex; }
-  .returning-banner .rb-icon{ font-size:24px; line-height:1; flex-shrink:0; }
+  .returning-banner .day-num{ font-family:'Fraunces',serif; font-size:26px; color:var(--brass); line-height:1; }
+  .returning-banner .day-lbl{ font-size:9.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-top:2px; }
   .returning-banner .rb-text{ font-size:13.5px; color:var(--ink-dim); }
   .returning-banner .rb-text b{ color:var(--ink); font-weight:600; }
   .returning-banner .rb-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
   .returning-banner .rb-tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--teal); border:1px solid rgba(79,209,197,.3); background:var(--teal-dim); padding:2px 8px; border-radius:10px; }
-
   .section-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-dim); margin-bottom:12px; }
-  .chip-grid{ display:flex; flex-wrap:wrap; gap:12px; }
-  .subject-chip{
-    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); color:var(--ink);
-    padding:11px 20px 11px 12px; border-radius:14px; cursor:pointer; font-family:inherit; font-size:14px; font-weight:500;
-    transition:border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
-    display:flex; align-items:center; gap:10px;
-    box-shadow:0 14px 30px -20px rgba(0,0,0,.5);
-  }
-  .subject-chip .chip-icon{
-    width:30px; height:30px; flex-shrink:0; border-radius:9px;
-    background:var(--bg-panel-2); border:1px solid var(--line-soft);
-    display:flex; align-items:center; justify-content:center; font-size:15px; line-height:1;
-    transition:border-color .15s ease, background .15s ease;
-  }
-  .subject-chip:hover{ border-color:var(--ink-dim); transform:translateY(-1px); }
-  .subject-chip.selected{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); box-shadow:0 14px 30px -20px rgba(0,0,0,.5), 0 0 0 1px rgba(201,162,75,.15); }
-  .subject-chip.selected .chip-icon{ border-color:rgba(201,162,75,.4); background:rgba(201,162,75,.1); }
+  .chip-grid{ display:flex; flex-wrap:wrap; gap:10px; }
+  .subject-chip{ background:var(--bg-panel); border:1px solid var(--line); color:var(--ink); padding:12px 18px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:14px; transition:.15s; display:flex; align-items:center; gap:8px; }
+  .subject-chip:hover{ border-color:var(--ink-dim); }
+  .subject-chip.selected{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); }
   .custom-topic-box{ margin-top:14px; max-width:520px; display:none; }
   .custom-topic-box.show{ display:block; }
   .persona-row{ display:flex; gap:10px; max-width:560px; }
-  .persona-btn{
-    flex:1; background:var(--bg-panel); border:1px solid var(--line); color:var(--ink-dim);
-    padding:14px 8px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:13.5px;
-    transition:.15s;
-  }
+  .persona-btn{ flex:1; background:var(--bg-panel); border:1px solid var(--line); color:var(--ink-dim); padding:14px 8px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:13.5px; transition:.15s; }
   .persona-btn.selected{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); }
-
   .camera-toggle-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; max-width:560px; }
   .camera-toggle-row .hint{ font-size:12px; color:var(--ink-faint); line-height:1.5; }
-
-  /* ===== RESUME / JD CARD (Interview Studio) ===== */
-  .resume-card{
-    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-radius:var(--radius); max-width:640px; overflow:hidden;
-    box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
-    transition:border-color .2s ease;
-  }
-  .resume-card.open{ border-color:rgba(201,162,75,.3); }
-  .resume-toggle{
-    width:100%; display:flex; align-items:center; gap:14px;
-    background:none; border:none; color:var(--ink); cursor:pointer;
-    padding:18px 20px; text-align:left; font-family:inherit;
-  }
-  .resume-toggle .rt-icon{
-    width:38px; height:38px; border-radius:10px; background:var(--bg-panel-2); border:1px solid var(--line-soft);
-    display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;
-  }
-  .resume-toggle .rt-text{ display:flex; flex-direction:column; gap:2px; flex:1; }
-  .resume-toggle .rt-title{ font-size:14px; font-weight:500; color:var(--ink); }
-  .resume-toggle .rt-sub{ font-size:12px; color:var(--ink-dim); }
-  .resume-toggle .rt-chevron{ font-size:12px; color:var(--ink-faint); transition:transform .2s ease; flex-shrink:0; }
-  .resume-card.open .rt-chevron{ transform:rotate(180deg); color:var(--brass); }
-  .resume-body{ display:none; padding:0 20px 22px; }
-  .resume-card.open .resume-body{ display:block; }
-  .resume-textarea{
-    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--ink);
-    border-radius:10px; padding:12px 14px; font-size:13px; font-family:inherit; resize:vertical;
-    transition:border-color .15s ease;
-  }
-  .resume-textarea:focus{ outline:none; border-color:var(--brass); }
-  .resume-actions-row{ display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
-  .resume-action-btn{ display:inline-flex; align-items:center; gap:7px; padding:9px 15px; font-size:12px; }
-  .resume-hint{ font-size:11px; color:var(--ink-faint); }
-  .resume-divider{ height:1px; background:var(--line-soft); margin:22px 0 18px; }
-  .jd-block .jd-label{ display:flex; align-items:baseline; gap:8px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin-bottom:10px; }
-  .optional-tag{ font-size:10.5px; text-transform:none; letter-spacing:0; color:var(--ink-faint); font-weight:400; }
-  .skill-gap-result{ margin-top:18px; }
-  .skill-gap-summary{ margin-top:10px; font-size:12.5px; color:var(--brass); font-style:italic; }
-
   .start-row{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
   .start-row .btn-primary{ width:auto; padding:15px 36px; }
   details.config{ color:var(--ink-dim); font-size:12px; }
   details.config summary{ cursor:pointer; }
   details.config input{ margin-top:8px; width:100%; max-width:440px; }
-
-  /* ===== INTERVIEW ROOM ===== */
   #room{ align-items:center; gap:0; padding-top:20px; }
-  .room-grid{
-    width:100%; display:grid;
-    grid-template-columns:210px 1fr 220px;
-    gap:22px; flex:1; align-items:start;
-    margin-top:12px;
-  }
+  .room-grid{ width:100%; display:grid; grid-template-columns:210px 1fr 220px; gap:22px; flex:1; align-items:start; margin-top:12px; }
   @media (max-width:900px){ .room-grid{ grid-template-columns:1fr; } }
   .panel{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
   .panel h3{ font-size:10.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--ink-dim); margin:0 0 14px; font-family:'IBM Plex Mono',monospace; }
   .ladder{ display:flex; flex-direction:column-reverse; gap:6px; }
-  .rung{
-    height:26px; border-radius:6px; background:var(--bg);
-    border:1px solid var(--line); position:relative; display:flex; align-items:center; padding:0 10px;
-    font-size:11px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace;
-  }
+  .rung{ height:26px; border-radius:6px; background:var(--bg); border:1px solid var(--line); position:relative; display:flex; align-items:center; padding:0 10px; font-size:11px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; }
   .rung.active{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); }
-
-  /* --- camera / posture monitor --- */
   .cam-monitor{ margin-top:18px; }
-  .cam-frame{
-    position:relative; width:100%; aspect-ratio:4/3; border-radius:10px; overflow:hidden;
-    background:var(--bg-panel-2); border:1px solid var(--line-soft);
-  }
+  .cam-frame{ position:relative; width:100%; aspect-ratio:4/3; border-radius:10px; overflow:hidden; background:var(--bg-panel-2); border:1px solid var(--line-soft); }
   .cam-frame video{ width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block; }
-  .cam-frame .cam-off{
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;
-    color:var(--ink-faint); font-size:11px; text-align:center; padding:12px; font-family:'IBM Plex Mono',monospace;
-  }
+  .cam-frame .cam-off{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; color:var(--ink-faint); font-size:11px; text-align:center; padding:12px; font-family:'IBM Plex Mono',monospace; }
   .cam-frame .corner{ position:absolute; width:14px; height:14px; border-color:var(--brass); opacity:.7; }
   .cam-frame .corner.tl{ top:6px; left:6px; border-top:2px solid; border-left:2px solid; }
   .cam-frame .corner.tr{ top:6px; right:6px; border-top:2px solid; border-right:2px solid; }
   .cam-frame .corner.bl{ bottom:6px; left:6px; border-bottom:2px solid; border-left:2px solid; }
   .cam-frame .corner.br{ bottom:6px; right:6px; border-bottom:2px solid; border-right:2px solid; }
-  .cam-frame .rec{
-    position:absolute; top:8px; left:8px; display:flex; align-items:center; gap:5px;
-    font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.08em; color:#fff;
-    background:rgba(0,0,0,.45); padding:3px 7px; border-radius:20px;
-  }
+  .cam-frame .rec{ position:absolute; top:8px; left:8px; display:flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.08em; color:#fff; background:rgba(0,0,0,.45); padding:3px 7px; border-radius:20px; }
   .cam-frame .rec .rdot{ width:6px; height:6px; border-radius:50%; background:var(--red); animation:blink-dot 1s infinite; }
   .cam-caption{ font-size:10px; color:var(--ink-faint); margin-top:8px; line-height:1.5; font-family:'IBM Plex Mono',monospace; }
-
   .stage{ display:flex; flex-direction:column; align-items:center; gap:20px; min-height:420px; justify-content:center;}
   .orb-wrap{ position:relative; width:220px; height:220px; display:flex; align-items:center; justify-content:center;}
   .orb-ring{ position:absolute; inset:0; border-radius:50%; border:1px solid var(--line); }
   .orb-ring.r2{ inset:-18px; opacity:.5; }
   .orb-ring.r3{ inset:-38px; opacity:.25; }
-  .orb{
-    width:150px; height:150px; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #2a2f3c, #12151c 70%);
-    border:1px solid var(--line);
-    display:flex; align-items:center; justify-content:center;
-    transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease;
-  }
+  .orb{ width:150px; height:150px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #2a2f3c, #12151c 70%); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
   .orb.ai-speaking{ border-color:var(--brass); box-shadow:0 0 40px rgba(201,162,75,.35); animation:pulse-brass 1.6s ease-in-out infinite; }
   .orb.listening{ border-color:var(--teal); box-shadow:0 0 40px rgba(79,209,197,.35); animation:pulse-teal 1.2s ease-in-out infinite; }
   .orb.thinking{ animation:spin 2.5s linear infinite; border-color:var(--ink-dim); }
@@ -298,20 +138,11 @@
   @keyframes pulse-teal{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.1);} }
   @keyframes spin{ from{transform:rotate(0);} to{transform:rotate(360deg);} }
   .orb-label{ font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; }
-  .cross-day-badge{
-    display:none; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:10px;
-    color:var(--teal); border:1px solid rgba(79,209,197,.35); background:var(--teal-dim);
-    padding:3px 9px; border-radius:20px; letter-spacing:.04em; text-transform:uppercase;
-  }
+  .cross-day-badge{ display:none; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--teal); border:1px solid rgba(79,209,197,.35); background:var(--teal-dim); padding:3px 9px; border-radius:20px; letter-spacing:.04em; text-transform:uppercase; }
   .cross-day-badge.show{ display:inline-flex; }
   .caption{ max-width:560px; text-align:center; min-height:70px; font-family:'Fraunces',serif; font-size:19px; line-height:1.5; color:var(--ink); }
   .caption.small{ font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-dim); min-height:auto;}
-
-  /* --- vitals strip (signature element) --- */
-  .vitals{
-    width:100%; max-width:460px; display:flex; flex-direction:column; gap:9px;
-    background:var(--bg-panel-2); border:1px solid var(--line-soft); border-radius:10px; padding:14px 16px;
-  }
+  .vitals{ width:100%; max-width:460px; display:flex; flex-direction:column; gap:9px; background:var(--bg-panel-2); border:1px solid var(--line-soft); border-radius:10px; padding:14px 16px; }
   .vitals-title{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:2px; display:flex; justify-content:space-between; }
   .vital-row{ display:flex; align-items:center; gap:10px; }
   .vital-row .vlbl{ width:92px; flex-shrink:0; font-size:10.5px; font-family:'IBM Plex Mono',monospace; color:var(--ink-dim); }
@@ -321,16 +152,11 @@
   .vital-fill.posture{ background:var(--teal); }
   .vital-fill.gaze{ background:#9b8cf2; }
   .vital-row .vval{ width:34px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim); }
-
   .mic-btn{ background:none; border:1px solid var(--line); color:var(--ink-dim); padding:10px 20px; border-radius:30px; cursor:pointer; font-size:13px; font-family:inherit; }
   .mic-btn.on{ border-color:var(--red); color:var(--red); }
   .mic-btn.retry{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); cursor:pointer; }
   .control-row{ display:flex; gap:10px; margin-top:4px; }
-  .control-btn{
-    background:none; border:1px solid var(--line); color:var(--ink-dim);
-    padding:9px 16px; border-radius:20px; cursor:pointer; font-size:12.5px; font-family:inherit;
-    transition:.15s;
-  }
+  .control-btn{ background:none; border:1px solid var(--line); color:var(--ink-dim); padding:9px 16px; border-radius:20px; cursor:pointer; font-size:12.5px; font-family:inherit; transition:.15s; }
   .control-btn:hover{ border-color:var(--ink-dim); color:var(--ink); }
   .control-btn.muted{ border-color:var(--brass); color:var(--brass); }
   .control-btn.cam-on{ border-color:var(--teal); color:var(--teal); }
@@ -342,8 +168,6 @@
   .tick .mark.partial{ background:var(--brass); }
   .tick .mark.incorrect{ background:var(--red); }
   .tick .link-ico{ color:var(--teal); }
-
-  /* ===== REPORT ===== */
   #report{ gap:30px; padding-top:20px; }
   #report h1{ font-family:'Fraunces',serif; font-size:32px; margin:0; }
   .report-sub-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
@@ -354,34 +178,25 @@
   .score-card .lbl{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin-top:4px;}
   .recommend{ display:inline-block; padding:6px 14px; border-radius:20px; border:1px solid var(--teal); color:var(--teal); font-size:12px; text-transform:uppercase; letter-spacing:.06em; width:fit-content; }
   .crossday-pill{ display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:20px; border:1px solid var(--line); color:var(--ink-dim); font-size:12px; font-family:'IBM Plex Mono',monospace; }
-
   .report-2col{ display:grid; grid-template-columns:1.3fr 1fr; gap:28px; align-items:start; }
   @media (max-width:820px){ .report-2col{ grid-template-columns:1fr; } }
-
   .report-timeline{ display:flex; flex-direction:column; gap:10px; }
   .report-tick{ background:var(--bg-panel); border:1px solid var(--line); border-radius:10px; padding:12px 16px; font-size:13px; position:relative; }
   .report-tick .q{ color:var(--ink); margin-bottom:4px; display:flex; align-items:center; gap:8px; }
   .report-tick .fb{ color:var(--ink-dim); font-size:12px; }
   .report-tick .link-tag{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--teal); border:1px solid rgba(79,209,197,.35); background:var(--teal-dim); padding:1px 7px; border-radius:10px; }
-
   .revision-list{ display:flex; flex-wrap:wrap; gap:8px; }
   .revision-chip{ background:var(--red-dim); border:1px solid var(--red); color:var(--red); padding:6px 12px; border-radius:20px; font-size:12px; }
   .restart{ align-self:flex-start; margin-top:10px; }
-
-  /* --- skill radar --- */
   .radar-wrap{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; display:flex; flex-direction:column; align-items:center; gap:4px; }
   .radar-wrap svg{ width:100%; max-width:320px; height:auto; }
   .radar-legend{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:6px; }
   .radar-legend span{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim); }
-
-  /* --- interviewer's notes (hidden scratchpad, revealed in report) --- */
   .notes-wrap{ background:var(--bg-panel-2); border:1px solid var(--line-soft); border-radius:var(--radius); padding:18px 20px; }
   .note-line{ display:flex; gap:10px; padding:8px 0; border-bottom:1px dashed var(--line-soft); font-size:12.5px; }
   .note-line:last-child{ border-bottom:none; }
   .note-line .np{ font-family:'IBM Plex Mono',monospace; color:var(--ink-faint); font-size:10.5px; flex-shrink:0; width:34px; }
   .note-line .nt{ color:var(--ink-dim); font-style:italic; }
-
-  /* ===== LANDING / HERO ===== */
   #landing{ padding-top:38px; }
   .hero-grid{ width:100%; display:grid; grid-template-columns:1.1fr .9fr; gap:48px; align-items:center; min-height:60vh; }
   @media (max-width:860px){ .hero-grid{ grid-template-columns:1fr; min-height:auto; } }
@@ -392,10 +207,7 @@
   .hero-buttons .btn-primary{ padding:15px 30px; }
   .hero-buttons .btn-ghost{ padding:15px 26px; }
   .hero-preview{ display:flex; justify-content:center; }
-  .preview-card{
-    width:100%; max-width:320px; background:var(--bg-panel); border:1px solid var(--line); border-radius:16px;
-    padding:22px; box-shadow:0 30px 80px -30px rgba(0,0,0,.6); transition:box-shadow .4s ease, border-color .4s ease;
-  }
+  .preview-card{ width:100%; max-width:320px; background:var(--bg-panel); border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:0 30px 80px -30px rgba(0,0,0,.6); transition:box-shadow .4s ease, border-color .4s ease; }
   .preview-card.pulse{ border-color:var(--brass); box-shadow:0 0 0 4px rgba(201,162,75,.15), 0 30px 80px -30px rgba(0,0,0,.6); }
   .preview-top{ display:flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink); margin-bottom:16px; }
   .preview-top .dot{ width:7px; height:7px; border-radius:50%; background:var(--teal); box-shadow:0 0 8px var(--teal); animation:blink-dot 1.6s ease-in-out infinite; }
@@ -403,33 +215,16 @@
   .preview-row span:last-child{ color:var(--ink); font-weight:500; }
   .preview-timer{ font-family:'IBM Plex Mono',monospace; font-size:22px; color:var(--brass); margin:16px 0 6px; }
   .preview-caption{ font-size:12.5px; color:var(--ink-faint); font-style:italic; }
-
-  /* ===== SETUP: experience / type / duration / plan ===== */
   .option-row{ display:flex; gap:10px; flex-wrap:wrap; max-width:640px; }
-  .option-btn{
-    background:var(--bg-panel); border:1px solid var(--line); color:var(--ink-dim);
-    padding:10px 16px; border-radius:20px; cursor:pointer; font-family:inherit; font-size:13px;
-    transition:.15s;
-  }
+  .option-btn{ background:var(--bg-panel); border:1px solid var(--line); color:var(--ink-dim); padding:10px 16px; border-radius:20px; cursor:pointer; font-family:inherit; font-size:13px; transition:.15s; }
   .option-btn:hover{ border-color:var(--ink-dim); color:var(--ink); }
   .option-btn.selected{ border-color:var(--brass); color:var(--brass); background:var(--brass-dim); }
-  .plan-card{
-    margin-top:16px; max-width:420px;
-    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%), var(--bg-panel-2);
-    border:1px solid var(--line-soft);
-    border-radius:12px; padding:18px 20px;
-    box-shadow:0 18px 44px -24px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.03);
-  }
+  .plan-card{ margin-top:16px; max-width:420px; background:var(--bg-panel-2); border:1px solid var(--line-soft); border-radius:12px; padding:16px 18px; }
   .plan-card .pc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:10px; }
   .plan-card .pc-row{ display:flex; justify-content:space-between; font-size:13px; color:var(--ink-dim); padding:4px 0; }
   .plan-card .pc-row b{ color:var(--ink); font-weight:600; }
   .plan-card .pc-total{ font-family:'Fraunces',serif; font-size:20px; color:var(--brass); margin-top:8px; }
-
-  /* ===== ROOM HEADER BAR ===== */
-  .room-header{
-    width:100%; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
-    background:var(--bg-panel); border:1px solid var(--line); border-radius:12px; padding:12px 18px; margin-bottom:4px;
-  }
+  .room-header{ width:100%; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; background:var(--bg-panel); border:1px solid var(--line); border-radius:12px; padding:12px 18px; margin-bottom:4px; }
   .rh-left{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .rh-title{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; color:var(--ink); font-weight:600; }
   .rh-pill{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-dim); border:1px solid var(--line-soft); padding:3px 10px; border-radius:20px; }
@@ -437,25 +232,12 @@
   .rh-rec{ display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; color:var(--red); text-transform:uppercase; }
   .rh-rec .rdot{ width:7px; height:7px; border-radius:50%; background:var(--red); animation:blink-dot 1s infinite; }
   .rh-timer{ font-family:'IBM Plex Mono',monospace; font-size:15px; color:var(--brass); min-width:52px; text-align:right; }
-
-  /* ===== ADAPTIVE DIFFICULTY TOAST ===== */
-  .diff-toast{
-    font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-align:center; color:var(--brass);
-    background:var(--brass-dim); border:1px solid rgba(201,162,75,.3); border-radius:8px;
-    padding:6px 8px; margin-top:10px; opacity:0; transform:translateY(-4px);
-    transition:opacity .3s ease, transform .3s ease; pointer-events:none;
-  }
+  .diff-toast{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-align:center; color:var(--brass); background:var(--brass-dim); border:1px solid rgba(201,162,75,.3); border-radius:8px; padding:6px 8px; margin-top:10px; opacity:0; transform:translateY(-4px); transition:opacity .3s ease, transform .3s ease; pointer-events:none; }
   .diff-toast.show{ opacity:1; transform:translateY(0); }
-
-  /* ===== DASHBOARD: readiness / recent interviews ===== */
-  .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
   @media (max-width:820px){ .dash-grid{ grid-template-columns:1fr; } }
-  .readiness-card{
-    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-radius:var(--radius); padding:24px;
-    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
-  }
-  .readiness-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:14px; }
+  .readiness-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
+  .readiness-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
   .readiness-top{ display:flex; align-items:baseline; gap:10px; }
   .readiness-num{ font-family:'Fraunces',serif; font-size:40px; color:var(--brass); }
   .readiness-lbl{ font-size:12.5px; color:var(--ink-dim); }
@@ -469,14 +251,9 @@
   .weak-callout .wc-text{ font-size:12.5px; color:var(--ink); }
   .weak-callout .wc-text b{ color:var(--red); }
   .weak-callout .btn-ghost{ padding:8px 14px; font-size:12px; border-color:var(--red); color:var(--red); white-space:nowrap; }
-
-  .recent-card{
-    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-radius:var(--radius); padding:24px;
-    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
-  }
-  .recent-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:14px; }
-  .recent-row{ display:flex; align-items:center; justify-content:space-between; padding:11px 2px; border-bottom:1px dashed var(--line-soft); font-size:13px; transition:padding .15s ease; }
+  .recent-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
+  .recent-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
+  .recent-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px dashed var(--line-soft); font-size:13px; }
   .recent-row:last-child{ border-bottom:none; }
   .recent-row .rr-topic{ color:var(--ink); }
   .recent-row .rr-date{ color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; font-size:11px; }
@@ -485,20 +262,12 @@
   .recent-row .rr-score.mid{ color:var(--brass); }
   .recent-row .rr-score.low{ color:var(--red); }
   .dash-empty{ color:var(--ink-faint); font-size:12.5px; font-style:italic; }
-
-  /* ===== REPORT: progress trend ===== */
   .progress-trend{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px; }
   .trend-chip{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink-dim); background:var(--bg-panel-2); border:1px solid var(--line-soft); padding:5px 12px; border-radius:20px; }
   .trend-chip.current{ color:var(--brass); border-color:rgba(201,162,75,.35); background:var(--brass-dim); font-weight:600; }
   .trend-arrow{ color:var(--ink-faint); font-size:13px; }
   .practice-weak-btn{ width:auto; margin-top:6px; }
-
-  /* ===== PIPELINE STATE INDICATOR ===== */
-  .state-pill{
-    display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
-    letter-spacing:.08em; text-transform:uppercase; padding:4px 12px; border-radius:20px; border:1px solid var(--line);
-    color:var(--ink-dim); transition:border-color .2s ease, color .2s ease, background .2s ease;
-  }
+  .state-pill{ display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; padding:4px 12px; border-radius:20px; border:1px solid var(--line); color:var(--ink-dim); transition:border-color .2s ease, color .2s ease, background .2s ease; }
   .state-pill .sp-dot{ width:6px; height:6px; border-radius:50%; background:var(--ink-dim); }
   .state-pill.listening{ border-color:rgba(79,209,197,.4); color:var(--teal); background:var(--teal-dim); }
   .state-pill.listening .sp-dot{ background:var(--teal); box-shadow:0 0 6px var(--teal); animation:blink-dot 1s infinite; }
@@ -507,14 +276,8 @@
   .state-pill.speaking{ border-color:rgba(201,162,75,.4); color:var(--brass); background:var(--brass-dim); }
   .state-pill.speaking .sp-dot{ background:var(--brass); box-shadow:0 0 6px var(--brass); animation:blink-dot 1.4s infinite; }
   @keyframes spin-dot{ 0%{opacity:1;} 50%{opacity:.3;} 100%{opacity:1;} }
-
-  /* ===== AI INTERVIEW MEMORY (dashboard) ===== */
-  .memory-card{
-    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-radius:var(--radius); padding:24px; margin-top:-8px;
-    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
-  }
-  .memory-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:14px; }
+  .memory-card{ background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-top:-12px; }
+  .memory-card .rc-title{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
   .memory-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px dashed var(--line-soft); font-size:13px; flex-wrap:wrap; }
   .memory-row:last-child{ border-bottom:none; }
   .memory-row .mr-left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -526,165 +289,33 @@
   .memory-status.retest_recommended{ color:var(--brass); border-color:rgba(201,162,75,.35); background:var(--brass-dim); }
   .memory-status.stable{ color:var(--ink-dim); }
   .memory-row .mr-practice-btn{ padding:6px 12px; font-size:11.5px; }
-
-  /* ===== PRACTICE MODE ===== */
   .practice-banner .rb-text{ font-size:13.5px; color:var(--ink-dim); }
   .practice-banner .rb-text b{ color:var(--red); font-weight:600; }
   .practice-banner-icon{ font-size:24px; }
-
-  /* ===== REPORT: practice drill result ===== */
-  .practice-result-card{
-    display:none; background:var(--bg-panel); border:1px solid rgba(201,162,75,.35); border-radius:var(--radius);
-    padding:20px; text-align:center;
-  }
+  .practice-result-card{ display:none; background:var(--bg-panel); border:1px solid rgba(201,162,75,.35); border-radius:var(--radius); padding:20px; text-align:center; }
   .practice-result-card .pr-title{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-dim); margin-bottom:14px; }
   .practice-result-card .pr-title b{ color:var(--brass); }
   .practice-result-row{ display:flex; align-items:baseline; justify-content:center; gap:16px; flex-wrap:wrap; }
   .practice-result-row .pr-num{ font-family:'Fraunces',serif; font-size:32px; color:var(--ink); }
   .practice-result-row .pr-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); margin-top:2px; }
   .practice-result-row .pr-arrow{ font-size:26px; color:var(--ink-faint); }
-
-  /* ===== NAV LINKS (multi-page shell) ===== */
-  .nav-links{ display:flex; align-items:center; gap:4px; }
-  .nav-links button{
-    background:none; border:none; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace;
-    font-size:12px; letter-spacing:.03em; padding:7px 13px; border-radius:8px; cursor:pointer; transition:.15s;
-  }
-  .nav-links button:hover{ color:var(--ink); background:var(--bg-panel); }
-  .nav-links button.active{ color:var(--brass); background:var(--brass-dim); }
-
-  /* ===== AUTH SCREENS (login / signup) ===== */
-  #login, #signup{ align-items:center; justify-content:center; text-align:center; gap:0; min-height:70vh; }
-  .auth-card{
-    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)), var(--bg-panel);
-    border:1px solid var(--line); border-radius:20px; padding:44px 40px; width:100%; max-width:400px;
-    display:flex; flex-direction:column; gap:16px; align-items:center;
-    box-shadow:0 30px 80px -30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
-    backdrop-filter:blur(6px);
-  }
-  .auth-mark{
-    width:48px; height:48px; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #3a3f4c, #12151c 70%);
-    border:1px solid var(--brass); box-shadow:0 0 20px rgba(201,162,75,.3);
-  }
-  .auth-card h1{ font-family:'Fraunces',serif; font-weight:700; font-size:24px; margin:2px 0 0; }
-  .auth-card .sub{ color:var(--ink-dim); font-size:13px; margin:-8px 0 2px; }
-  .auth-field{ display:flex; flex-direction:column; gap:6px; width:100%; text-align:left; }
-  .auth-field label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); }
-  .auth-field .pw-wrap{ position:relative; }
-  .auth-field .pw-wrap input{ padding-right:42px; }
-  .auth-field .pw-toggle{
-    position:absolute; right:12px; top:50%; transform:translateY(-50%);
-    background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:13px; padding:4px;
-  }
-  .auth-row-between{ display:flex; justify-content:space-between; align-items:center; width:100%; font-size:12.5px; color:var(--ink-dim); }
-  .auth-divider{ display:flex; align-items:center; gap:10px; width:100%; color:var(--ink-faint); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin:2px 0; }
-  .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
-  .auth-switch{ font-size:13px; color:var(--ink-dim); }
-  .auth-switch a{ color:var(--brass); text-decoration:none; cursor:pointer; }
-  .auth-switch a:hover{ text-decoration:underline; }
-  .demo-accounts{ width:100%; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
-  .demo-accounts button{
-    background:var(--bg); border:1px solid var(--line-soft); color:var(--ink-dim);
-    padding:6px 12px; border-radius:20px; font-size:11.5px; cursor:pointer; font-family:'IBM Plex Mono',monospace;
-  }
-  .demo-accounts button:hover{ border-color:var(--teal); color:var(--teal); }
-
-  /* ===== DASHBOARD: quick action cards ===== */
-  .quick-actions-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
-  @media (max-width:620px){ .quick-actions-grid{ grid-template-columns:1fr; } }
-  .qa-card{
-    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-radius:var(--radius); padding:24px;
-    box-shadow:0 24px 60px -28px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
-    cursor:pointer; transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
-    text-align:left; display:flex; flex-direction:column; gap:7px;
-  }
-  .qa-card:hover{
-    border-color:rgba(201,162,75,.4); transform:translateY(-2px);
-    box-shadow:0 28px 70px -26px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px rgba(201,162,75,.15);
-  }
-  .qa-card .qa-icon{ font-size:27px; }
-  .qa-card .qa-title{ font-family:'Fraunces',serif; font-size:19px; color:var(--ink); }
-  .qa-card .qa-sub{ font-size:12.5px; color:var(--ink-dim); }
-
-  /* ===== HISTORY PAGE ===== */
-  .history-list{ display:flex; flex-direction:column; gap:14px; }
-  .history-item{
-    background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-radius:var(--radius);
-    box-shadow:0 20px 50px -26px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
-    transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
-    overflow:hidden; cursor:pointer;
-  }
-  .history-item:hover{
-    border-color:rgba(201,162,75,.3); transform:translateY(-1px);
-    box-shadow:0 24px 60px -24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
-  }
-  .history-item.open{ border-color:rgba(201,162,75,.4); }
-  .history-row{
-    padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
-  }
-  .history-row .hr-topic{ font-family:'Fraunces',serif; font-size:16px; color:var(--ink); display:flex; align-items:center; gap:8px; }
-  .history-row .hr-chevron{ font-size:11px; color:var(--ink-faint); transition:transform .2s ease; }
-  .history-item.open .hr-chevron{ transform:rotate(90deg); color:var(--brass); }
-  .history-row .hr-date{ font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
-  .history-row .hr-score{ font-family:'Fraunces',serif; font-size:26px; }
-  .history-row .hr-score.good{ color:var(--teal); }
-  .history-row .hr-score.mid{ color:var(--brass); }
-  .history-row .hr-score.low{ color:var(--red); }
-  .history-row .hr-score-lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); text-align:center; }
-
-  .history-expand{ display:none; padding:0 22px 22px; border-top:1px dashed var(--line-soft); cursor:default; }
-  .history-item.open .history-expand{ display:block; }
-  .history-expand .he-label{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin:16px 0 10px; }
-  .history-expand .he-concepts{ display:flex; flex-direction:column; gap:8px; }
-  .he-concept-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--bg-panel-2); border:1px solid var(--line-soft); border-radius:10px; padding:9px 12px 9px 14px; flex-wrap:wrap; }
-  .he-concept-row .hec-tag{ font-size:13px; color:var(--ink); }
-  .he-concept-row .hec-score{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-dim); margin-left:8px; }
-  .he-concept-row .hec-practice-btn{ padding:6px 12px; font-size:11.5px; }
-  .history-expand .he-actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
-  .he-report-status{ font-size:12px; color:var(--ink-faint); margin-top:10px; }
-
-  /* ===== PROFILE PAGE ===== */
-  .profile-card{
-    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0) 40%), var(--bg-panel);
-    border:1px solid var(--line); border-radius:20px;
-    padding:36px; display:flex; flex-direction:column; align-items:center; gap:11px; max-width:420px;
-    box-shadow:0 30px 80px -30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
-  }
-  .profile-card .profile-avatar{
-    width:68px; height:68px; border-radius:50%; background:var(--brass); color:#1a1509;
-    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:23px;
-    box-shadow:0 0 24px rgba(201,162,75,.35);
-  }
-  .profile-card .profile-name{ font-family:'Fraunces',serif; font-size:22px; }
-  .profile-stats-row{ display:flex; gap:28px; margin-top:10px; }
-  .profile-stats-row .ps-num{ font-family:'Fraunces',serif; font-size:24px; color:var(--brass); text-align:center; }
-  .profile-stats-row .ps-lbl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim); text-align:center; }
 </style>
 </head>
 <body>
 
   <div class="navbar">
-    <div class="brand"><div class="mark"></div><span class="word">Interview Room</span><span class="tag">Assessment Platform</span></div>
-    <nav class="nav-links" id="navLinks" style="display:none;">
-      <button type="button" data-nav="dashboard">Dashboard</button>
-      <button type="button" data-nav="studio">Interview Studio</button>
-      <button type="button" data-nav="history">History</button>
-      <button type="button" data-nav="profile">Profile</button>
-    </nav>
+    <div class="brand" id="brandLogo" style="cursor:default;"><div class="mark"></div><span class="word">Interview Room</span><span class="tag">Assessment Platform</span></div>
     <div class="nav-right">
       <span class="status"><span class="dot" id="connDot"></span><span id="connLabel">idle</span></span>
       <span class="mono" id="sessionLabel" style="display:none;"></span>
       <span class="avatar-chip" id="userChip" style="display:none;">
         <span class="avatar" id="userAvatar">?</span>
         <span id="userNameLabel"></span>
+        <a href="#" class="signout" id="signoutLink">Sign out</a>
       </span>
     </div>
   </div>
 
-  <!-- ===================== LANDING / HERO ===================== -->
   <div class="screen active" id="landing">
     <div class="hero-grid">
       <div class="hero-copy">
@@ -709,87 +340,32 @@
     </div>
   </div>
 
-  <!-- ===================== LOGIN SCREEN ===================== -->
   <div class="screen" id="login">
-    <div class="auth-card">
-      <div class="auth-mark"></div>
-      <h1>Welcome back</h1>
-      <p class="sub">Sign in to your account</p>
-
-      <div class="auth-field">
-        <label for="loginNameInput">Full name</label>
-        <input type="text" id="loginNameInput" placeholder="e.g. Aakashi Thakur" autocomplete="name" />
+    <div class="login-card">
+      <div class="login-mark"></div>
+      <h1>Sign in to interview room</h1>
+      <p class="sub">Voice-first AI interviews with live posture &amp; confidence scoring.</p>
+      <div class="field-group">
+        <label for="nameInput">Your name</label>
+        <input type="text" id="nameInput" placeholder="e.g. Aakash" autocomplete="name" />
       </div>
-      <div class="auth-field">
-        <label for="loginEmailInput">Email address (optional)</label>
-        <input type="text" id="loginEmailInput" placeholder="you@example.com" autocomplete="email" />
-      </div>
-      <div class="auth-field">
-        <label for="loginPasswordInput">Password (optional)</label>
-        <div class="pw-wrap">
-          <input type="password" id="loginPasswordInput" placeholder="••••••••" autocomplete="current-password" />
-          <button type="button" class="pw-toggle" data-toggle-for="loginPasswordInput">👁</button>
-        </div>
-      </div>
-      <div class="auth-row-between">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rememberMeCheck" checked style="accent-color:var(--brass);" /> Remember me</label>
-      </div>
-
-      <button class="btn-primary" id="continueBtn">Sign In →</button>
-
-      <div class="demo-accounts">
-        <button type="button" class="demo-account-btn" data-demo-name="Aakashi Thakur">Demo: Aakashi</button>
-        <button type="button" class="demo-account-btn" data-demo-name="Rahul Verma">Demo: Rahul</button>
-        <button type="button" class="demo-account-btn" data-demo-name="Guest Candidate">Continue as Guest</button>
-      </div>
-
-      <p class="demo-note">Only your name is used to save progress — email/password are for this demo's login feel and aren't verified against anything.</p>
+      <button class="btn-primary" id="continueBtn">Continue</button>
+      <p class="demo-note">Demo account — no signup, no password. Your name personalizes this session and links your progress across days, stored on the server against that name only.</p>
       <p class="warn" id="supportWarning" style="display:none;"></p>
-      <p class="auth-switch">Don't have an account? <a id="goToSignup">Sign up</a></p>
     </div>
   </div>
 
-  <!-- ===================== SIGNUP SCREEN ===================== -->
-  <div class="screen" id="signup">
-    <div class="auth-card">
-      <div class="auth-mark"></div>
-      <h1>Create your account</h1>
-      <p class="sub">Start practicing with your AI interviewer</p>
-
-      <div class="auth-field">
-        <label for="signupNameInput">Full name</label>
-        <input type="text" id="signupNameInput" placeholder="e.g. Aakashi Thakur" autocomplete="name" />
-      </div>
-      <div class="auth-field">
-        <label for="signupEmailInput">Email address (optional)</label>
-        <input type="text" id="signupEmailInput" placeholder="you@example.com" autocomplete="email" />
-      </div>
-      <div class="auth-field">
-        <label for="signupPasswordInput">Password (optional)</label>
-        <div class="pw-wrap">
-          <input type="password" id="signupPasswordInput" placeholder="••••••••" autocomplete="new-password" />
-          <button type="button" class="pw-toggle" data-toggle-for="signupPasswordInput">👁</button>
-        </div>
-      </div>
-
-      <button class="btn-primary" id="signupContinueBtn">Create Account →</button>
-
-      <p class="demo-note">Same demo model as sign-in — your name links your interview history across sessions, nothing else is stored server-side.</p>
-      <p class="warn" id="signupSupportWarning" style="display:none;"></p>
-      <p class="auth-switch">Already have an account? <a id="goToLogin">Sign in</a></p>
-    </div>
-  </div>
-
-  <!-- ===================== WELCOME / DASHBOARD ===================== -->
-  <!-- ===================== DASHBOARD ===================== -->
-  <div class="screen" id="dashboard">
+  <div class="screen" id="welcome">
     <div>
       <h1 id="greeting">Hey there 👋</h1>
-      <p class="sub">Where you're at, and what to do next.</p>
+      <p class="sub">Ready to start your AI interview?</p>
     </div>
 
     <div class="returning-banner" id="returningBanner">
-      <div class="rb-icon">👋</div>
+      <div>
+        <div class="day-num" id="rbDayNum">2</div>
+        <div class="day-lbl">Day</div>
+      </div>
       <div>
         <div class="rb-text" id="rbText">Welcome back — last time you covered <b>—</b>.</div>
         <div class="rb-tags" id="rbTags"></div>
@@ -800,11 +376,14 @@
       <div class="practice-banner-icon">🎯</div>
       <div>
         <div class="rb-text">Practice Mode: <b id="practiceBannerTag">—</b><span id="practiceBannerBaseline"></span></div>
-        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-          <button class="btn-primary" id="practiceBannerStart" style="width:auto; padding:8px 16px; font-size:12.5px;">🎙️ Start Interview →</button>
-          <button class="btn-ghost" id="practiceBannerCancel" style="padding:8px 14px;font-size:11.5px;">Cancel practice mode</button>
-        </div>
+        <button class="btn-ghost" id="practiceBannerCancel" style="margin-top:8px;padding:6px 12px;font-size:11.5px;">Cancel practice mode</button>
       </div>
+    </div>
+
+    <div class="readiness-card" id="dashEmptyCard" style="display:none; opacity:.85;">
+      <div class="rc-title">Interview Readiness</div>
+      <div style="font-family:'Fraunces',serif; font-size:22px; color:var(--ink-dim); margin-top:4px;">Not evaluated yet</div>
+      <div style="font-size:13px; color:var(--ink-faint); margin-top:6px; line-height:1.5;">Complete your first interview to generate your readiness score, skill breakdown, and weakest-area insights.</div>
     </div>
 
     <div class="dash-grid" id="dashGrid" style="display:none;">
@@ -824,45 +403,20 @@
       </div>
     </div>
 
-    <div>
-      <div class="section-label">Quick actions</div>
-      <div class="quick-actions-grid">
-        <button type="button" class="qa-card" id="qaStartInterview">
-          <div class="qa-icon">🎙️</div>
-          <div class="qa-title">Start Interview</div>
-          <div class="qa-sub">Practice with your AI interviewer</div>
-        </button>
-        <button type="button" class="qa-card" id="qaViewHistory">
-          <div class="qa-icon">📊</div>
-          <div class="qa-title">View History</div>
-          <div class="qa-sub" id="qaHistorySub">See your past interviews</div>
-        </button>
-      </div>
-    </div>
-
     <div class="memory-card" id="memoryCard" style="display:none;">
       <div class="rc-title">🧠 Your AI Interview Memory</div>
       <div id="memoryConceptsList"></div>
     </div>
-  </div>
-
-  <!-- ===================== INTERVIEW STUDIO (setup) ===================== -->
-  <div class="screen" id="studio">
-    <div>
-      <span class="studio-kicker">🎙️ Build Mode</span>
-      <h1 class="studio-title">Interview Studio</h1>
-      <p class="sub">Build your interview — pick a subject, style, and length.</p>
-    </div>
 
     <div>
-      <div class="section-label">Step 1 — What are you preparing for?</div>
+      <div class="section-label">Choose a subject</div>
       <div class="chip-grid" id="subjectChips">
-        <button class="subject-chip" data-topic="Machine Learning Fundamentals"><span class="chip-icon">🧠</span>Machine Learning</button>
-        <button class="subject-chip" data-topic="Retrieval-Augmented Generation & AI Agents"><span class="chip-icon">🤖</span>RAG &amp; AI Agents</button>
-        <button class="subject-chip" data-topic="System Design"><span class="chip-icon">🏗️</span>System Design</button>
-        <button class="subject-chip" data-topic="Data Structures & Algorithms"><span class="chip-icon">🧩</span>DSA</button>
-        <button class="subject-chip" data-topic="Web Development"><span class="chip-icon">🌐</span>Web Development</button>
-        <button class="subject-chip" data-topic="__custom__"><span class="chip-icon">✏️</span>Custom topic</button>
+        <button class="subject-chip" data-topic="Machine Learning Fundamentals">🧠 Machine Learning</button>
+        <button class="subject-chip" data-topic="Retrieval-Augmented Generation & AI Agents">🤖 RAG & AI Agents</button>
+        <button class="subject-chip" data-topic="System Design">🏗️ System Design</button>
+        <button class="subject-chip" data-topic="Data Structures & Algorithms">🧩 DSA</button>
+        <button class="subject-chip" data-topic="Web Development">🌐 Web Development</button>
+        <button class="subject-chip" data-topic="__custom__">✏️ Custom topic</button>
       </div>
       <div class="custom-topic-box" id="customTopicBox">
         <div class="field-group">
@@ -873,7 +427,7 @@
     </div>
 
     <div>
-      <div class="section-label">Step 2 — Interview style</div>
+      <div class="section-label">Interviewer persona</div>
       <div class="persona-row">
         <button class="persona-btn selected" data-persona="friendly">😊 Friendly</button>
         <button class="persona-btn" data-persona="strict">😐 Strict</button>
@@ -882,7 +436,7 @@
     </div>
 
     <div>
-      <div class="section-label">Step 3 — Experience</div>
+      <div class="section-label">Experience level</div>
       <div class="option-row" id="experienceRow">
         <button class="option-btn" data-value="Beginner">Beginner</button>
         <button class="option-btn selected" data-value="Intermediate">Intermediate</button>
@@ -891,7 +445,7 @@
     </div>
 
     <div>
-      <div class="section-label">Step 4 — Interview type</div>
+      <div class="section-label">Interview type</div>
       <div class="option-row" id="typeRow">
         <button class="option-btn selected" data-value="Technical">○ Technical</button>
         <button class="option-btn" data-value="Behavioral">○ Behavioral</button>
@@ -901,9 +455,8 @@
     </div>
 
     <div>
-      <div class="section-label">Step 5 — Duration</div>
+      <div class="section-label">Interview duration</div>
       <div class="option-row" id="durationRow">
-        <button class="option-btn" data-value="10">10 min</button>
         <button class="option-btn" data-value="15">15 min</button>
         <button class="option-btn selected" data-value="30">30 min</button>
         <button class="option-btn" data-value="45">45 min</button>
@@ -918,49 +471,34 @@
     </div>
 
     <div>
-      <div class="section-label">Resume / job description <span class="optional-tag">optional</span></div>
-      <div class="resume-card open" id="resumeCard">
-        <button type="button" class="resume-toggle" id="resumeToggleBtn">
-          <span class="rt-icon">✏️</span>
-          <span class="rt-text">
-            <span class="rt-title">Paste resume or JD</span>
-            <span class="rt-sub">Get role-specific questions tailored to what's actually in it</span>
-          </span>
-          <span class="rt-chevron">▾</span>
-        </button>
-        <div class="resume-body" id="resumeBody">
-          <textarea id="resumeInput" class="mono resume-textarea" rows="6" placeholder="Paste your resume text or the job description here — the interviewer will tailor questions to what's actually in it (projects, stack, responsibilities) instead of generic textbook questions."></textarea>
-          <div class="resume-actions-row">
-            <button type="button" class="btn-ghost resume-action-btn" id="pasteClipboardBtn"><span>📋</span>Paste from clipboard</button>
-            <button type="button" class="btn-ghost resume-action-btn" id="uploadResumeBtn"><span>📎</span>Upload PDF / TXT</button>
-            <input type="file" id="resumeFileInput" accept=".pdf,.txt,.md" style="display:none;" />
-          </div>
-          <span id="pasteStatus" class="resume-hint">If Ctrl+V doesn't work in this browser, use the button instead.</span>
-
-          <div class="resume-divider"></div>
-
-          <div class="jd-block">
-            <label class="jd-label">Job description <span class="optional-tag">for skill-gap analysis</span></label>
-            <textarea id="jdInput" class="mono resume-textarea" rows="4" placeholder="Paste the job description here to see a skill-gap table before you start."></textarea>
-            <div class="resume-actions-row">
-              <button type="button" class="btn-ghost resume-action-btn" id="skillGapBtn"><span>🎯</span>Analyze skill gap</button>
-              <span id="skillGapStatus" class="resume-hint"></span>
-            </div>
-          </div>
-
-          <div id="skillGapResult" class="skill-gap-result" style="display:none;">
-            <div class="plan-card" style="max-width:100%;">
-              <div class="pc-title">Skill Gap</div>
-              <div id="skillGapTable"></div>
-              <div id="skillGapSummary" class="skill-gap-summary"></div>
-            </div>
+      <div class="section-label">Resume / job description (optional)</div>
+      <details class="config" id="resumeDetails" open>
+        <summary>✏️ Paste resume or JD to get role-specific questions</summary>
+        <textarea id="resumeInput" class="mono" rows="6" placeholder="Paste your resume text or the job description here — the interviewer will tailor questions to what's actually in it (projects, stack, responsibilities) instead of generic textbook questions." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
+        <div style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
+        <button type="button" class="btn-ghost" id="pasteClipboardBtn" style="padding:6px 12px; font-size:11.5px;">📋 Paste from clipboard</button>
+          <button type="button" class="btn-ghost" id="uploadResumeBtn" style="padding:6px 12px; font-size:11.5px;">📎 Upload PDF / TXT</button>
+          <input type="file" id="resumeFileInput" accept=".pdf,.txt,.md" style="display:none;" />
+          <span id="pasteStatus" style="font-size:11px; color:var(--ink-faint);">If Ctrl+V doesn't work in this browser, use this button instead.</span>
+        </div>
+        <div style="margin-top:14px;">
+          <label style="font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-dim);">Job description (optional, for skill-gap analysis)</label>
+          <textarea id="jdInput" class="mono" rows="4" placeholder="Paste the job description here to see a skill-gap table before you start." style="width:100%;max-width:560px;background:var(--bg);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:13px;font-family:inherit;resize:vertical;margin-top:8px;"></textarea>
+          <button type="button" class="btn-ghost" id="skillGapBtn" style="padding:6px 12px; font-size:11.5px; margin-top:8px;">🎯 Analyze skill gap</button>
+          <span id="skillGapStatus" style="font-size:11px; color:var(--ink-faint); margin-left:8px;"></span>
+        </div>
+        <div id="skillGapResult" style="display:none; margin-top:14px; max-width:560px;">
+          <div class="plan-card" style="max-width:100%;">
+            <div class="pc-title">Skill Gap</div>
+            <div id="skillGapTable"></div>
+            <div id="skillGapSummary" style="margin-top:10px; font-size:12.5px; color:var(--brass); font-style:italic;"></div>
           </div>
         </div>
-      </div>
+      </details>
     </div>
 
     <div>
-      <div class="section-label">Camera <span class="optional-tag">optional</span></div>
+      <div class="section-label">Camera (optional)</div>
       <div class="camera-toggle-row">
         <button class="btn-ghost" id="cameraToggleBtn">🎥 Enable camera for posture scoring</button>
         <span class="hint" id="cameraHint">Analyzed entirely on your device, frame-by-frame — video is never uploaded. Only a numeric posture/eye-contact score is sent with each answer.</span>
@@ -972,37 +510,15 @@
     </div>
     <p class="warn" id="welcomeWarning" style="display:none;"></p>
 
-    <input type="hidden" id="apiBaseInput" />
+    <!-- Dev-only backend override: hidden from the production UI (auto-detects
+         the correct URL on its own). Triple-click the logo to reveal it if
+         you ever need to point at a different backend for testing. -->
+    <details class="config" id="devBackendDetails" style="display:none;">
+      <summary>Backend URL</summary>
+      <input type="text" id="apiBaseInput" class="mono" placeholder="http://localhost:3000" />
+    </details>
   </div>
 
-  <!-- ===================== HISTORY ===================== -->
-  <div class="screen" id="history">
-    <div>
-      <h1>Interview History</h1>
-      <p class="sub">How you've been doing across past sessions.</p>
-    </div>
-    <div id="historyEmpty" class="dash-empty" style="display:none;">No interviews yet — head to Interview Studio to start your first one.</div>
-    <div class="history-list" id="historyList"></div>
-  </div>
-
-  <!-- ===================== PROFILE ===================== -->
-  <div class="screen" id="profile">
-    <div>
-      <h1>Profile</h1>
-      <p class="sub">Your account for this demo.</p>
-    </div>
-    <div class="profile-card">
-      <div class="profile-avatar" id="profileAvatar">?</div>
-      <div class="profile-name" id="profileName">—</div>
-      <div class="profile-stats-row">
-        <div><div class="ps-num" id="profileReadiness">—</div><div class="ps-lbl">Readiness</div></div>
-        <div><div class="ps-num" id="profileCount">—</div><div class="ps-lbl">Interviews</div></div>
-      </div>
-      <button class="btn-ghost" id="profileSignoutBtn" style="margin-top:14px;">Sign out</button>
-    </div>
-  </div>
-
-  <!-- ===================== INTERVIEW ROOM ===================== -->
   <div class="screen" id="room">
     <div class="room-header" id="roomHeader">
       <div class="rh-left">
@@ -1019,7 +535,7 @@
     <div class="room-grid">
       <div>
         <div class="panel">
-          <h3>Difficulty</h3>
+          <h3>⚡ Adaptive Interview<br/><span style="font-size:9.5px;color:var(--ink-faint);text-transform:none;letter-spacing:0;">Difficulty adjusts to your answers</span></h3>
           <div class="ladder" id="ladder"></div>
           <div class="diff-toast" id="diffToast"></div>
         </div>
@@ -1043,6 +559,7 @@
           <div class="orb" id="orb"></div>
         </div>
         <div class="orb-label" id="orbLabel">connecting…</div>
+        <div class="caption small" id="followUpLabel" style="display:none; color:var(--brass); text-transform:uppercase; letter-spacing:.08em; font-size:10.5px; font-family:'IBM Plex Mono',monospace;">↳ Follow-up · based on your previous answer</div>
         <div class="caption" id="caption">—</div>
         <div class="caption small" id="feedback"></div>
 
@@ -1071,7 +588,6 @@
     </div>
   </div>
 
-  <!-- ===================== REPORT SCREEN ===================== -->
   <div class="screen" id="report">
     <div>
       <h1 id="reportGreeting">Interview report</h1>
@@ -1111,9 +627,7 @@
             </div>
           </div>
           <div class="report-timeline" id="reportTimeline"></div>
-
           <div class="notes-wrap" id="transcriptWrap" style="display:none; margin-top:12px;"></div>
-
           <div class="notes-wrap" id="replayWrap" style="display:none; margin-top:12px;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
               <span class="mono" id="replayCounter" style="font-size:11px; color:var(--ink-faint);">Q1 / 1</span>
@@ -1158,21 +672,34 @@
 (function(){
   "use strict";
 
-  // ---------- latency instrumentation ----------
   const t0 = performance.now();
   function markLatency(tag, extra){
     const ms = Math.round(performance.now() - t0);
     console.log('[latency ' + ms + 'ms] ' + tag + (extra ? ' ' + JSON.stringify(extra) : ''));
   }
 
-  // ---------- config ----------
+  // Dev-only reveal for the backend-URL override: triple-click the logo.
+  // Purely a debug convenience — does not affect production behavior.
+  (function(){
+    let clicks = 0, clickTimer = null;
+    document.getElementById('brandLogo').addEventListener('click', () => {
+      clicks++;
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => { clicks = 0; }, 600);
+      if (clicks >= 3){
+        clicks = 0;
+        const el = document.getElementById('devBackendDetails');
+        if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+      }
+    });
+  })();
+
   const DEFAULT_API_BASE = window.location.origin.startsWith('http')
     ? window.location.origin : "http://localhost:3000";
   const apiBaseInput = document.getElementById('apiBaseInput');
   apiBaseInput.value = window.localStorage ? (localStorage.getItem('interview_api_base') || DEFAULT_API_BASE) : DEFAULT_API_BASE;
   function apiBase(){ return (apiBaseInput.value || DEFAULT_API_BASE).replace(/\/+$/,''); }
 
-  // ---------- backend warm-up (Render free-tier cold start mitigation) ----------
   function warmUpBackend(){
     const start = performance.now();
     fetch(apiBase() + '/api/health').then(() => {
@@ -1181,7 +708,6 @@
   }
   warmUpBackend();
 
-  // ---------- speech support check ----------
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const supportWarning = document.getElementById('supportWarning');
   function checkSupport(){
@@ -1192,69 +718,34 @@
   }
   checkSupport();
 
-  // ---------- state ----------
   let userName = '';
   let persona = 'friendly';
   let selectedTopic = '';
   let sessionId = null;
   let recognizing = false;
   let recognition = null;
-  let interviewActive = false; // guards the recursive askAndListen loop so it stops cleanly
+  let interviewActive = false;
   let voiceMuted = false;
-  let lastAskArgs = null; // remembers the current question so a mic error can be retried without losing place
-  let lastDifficultyLevel = null; // for the "difficulty adapting" toast
+  let lastAskArgs = null;
+  let lastDifficultyLevel = null;
   let roomTimerInterval = null;
   let roomTimerStart = null;
-  let currentTimeline = []; // populated on report load — powers both the full-transcript view and replay
+  let currentTimeline = [];
   let replayIndex = 0;
   let replayPlaying = false;
-  let manualStopRequested = false; // set true only by the "I'm done" button — the one explicit way to finalize an answer
-  let practiceFocus = null; // set when the candidate enters practice mode via a weakness "Practice" button
-  let practiceBaselineScore = null; // their last known score on that concept, for the before→after report view
+  let manualStopRequested = false;
+  let practiceFocus = null;
+  let practiceBaselineScore = null;
 
-  // ---------- screens ----------
-  const NAV_SCREENS = ['dashboard', 'studio', 'history', 'profile']; // screens that get a navbar link
   function showScreen(id){
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
-    // navbar links: only visible once logged in, hidden entirely during a live
-    // interview (room) so a candidate can't accidentally navigate off mid-answer.
-    const navLinks = document.getElementById('navLinks');
-    if (userName && id !== 'room'){
-      navLinks.style.display = 'flex';
-      document.querySelectorAll('#navLinks button').forEach(b => {
-        b.classList.toggle('active', b.dataset.nav === id);
-      });
-    } else {
-      navLinks.style.display = 'none';
-    }
   }
-  function goToDashboard(){
-    showScreen('dashboard');
-    loadReturningBanner();
-    loadDashboardData();
-    loadMemoryData();
-  }
-  function goToStudio(){ showScreen('studio'); }
-  function goToHistory(){ showScreen('history'); loadHistoryPage(); }
-  function goToProfile(){ showScreen('profile'); loadProfilePage(); }
-  document.querySelectorAll('#navLinks button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = btn.dataset.nav;
-      if (target === 'dashboard') goToDashboard();
-      else if (target === 'studio') goToStudio();
-      else if (target === 'history') goToHistory();
-      else if (target === 'profile') goToProfile();
-    });
-  });
-  document.getElementById('qaStartInterview').addEventListener('click', goToStudio);
-  document.getElementById('qaViewHistory').addEventListener('click', goToHistory);
   function setConn(label, live){
     document.getElementById('connLabel').textContent = label;
     document.getElementById('connDot').classList.toggle('live', !!live);
   }
 
-  // ---------- unified pipeline-state indicator (Listening / Processing / AI Speaking) ----------
   function setInterviewState(state, label){
     const pill = document.getElementById('statePill');
     const pillLabel = document.getElementById('statePillLabel');
@@ -1277,7 +768,6 @@
     lastDifficultyLevel = null;
   }
 
-  // ---------- mute / exit controls (interview room) ----------
   const muteBtn = document.getElementById('muteBtn');
   muteBtn.addEventListener('click', () => {
     voiceMuted = !voiceMuted;
@@ -1292,10 +782,9 @@
     stopInterview();
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
-    goToDashboard();
+    showScreen('welcome');
   });
 
-  // ---------- login ----------
   function initials(name){
     return name.trim().split(/\s+/).slice(0,2).map(w => w[0].toUpperCase()).join('') || '?';
   }
@@ -1310,58 +799,41 @@
     if (saved){
       userName = saved;
       setLoggedInUI();
-      goToDashboard();
+      showScreen('welcome');
+      loadReturningBanner();
+      loadDashboardData();
+      loadMemoryData();
       warmUpBackend();
     }
   }
-  function completeLogin(name){
-    if (!name) return;
+  document.getElementById('continueBtn').addEventListener('click', () => {
+    const name = document.getElementById('nameInput').value.trim();
+    if (!name){ document.getElementById('nameInput').focus(); return; }
     userName = name;
     if (window.localStorage) localStorage.setItem('interview_user_name', name);
     setLoggedInUI();
-    goToDashboard();
+    showScreen('welcome');
+    loadReturningBanner();
+    loadDashboardData();
+    loadMemoryData();
     warmUpBackend();
-  }
-  document.getElementById('continueBtn').addEventListener('click', () => {
-    const name = document.getElementById('loginNameInput').value.trim();
-    if (!name){ document.getElementById('loginNameInput').focus(); return; }
-    completeLogin(name);
   });
-  document.getElementById('signupContinueBtn').addEventListener('click', () => {
-    const name = document.getElementById('signupNameInput').value.trim();
-    if (!name){ document.getElementById('signupNameInput').focus(); return; }
-    completeLogin(name);
-  });
-  document.getElementById('goToSignup').addEventListener('click', () => showScreen('signup'));
-  document.getElementById('goToLogin').addEventListener('click', () => showScreen('login'));
-  document.querySelectorAll('.pw-toggle').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const input = document.getElementById(btn.dataset.toggleFor);
-      input.type = input.type === 'password' ? 'text' : 'password';
-    });
-  });
-  document.querySelectorAll('.demo-account-btn').forEach(btn => {
-    btn.addEventListener('click', () => completeLogin(btn.dataset.demoName));
-  });
-  document.getElementById('loginNameInput').addEventListener('keydown', (e) => {
+  document.getElementById('nameInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('continueBtn').click();
   });
-  function doSignOut(){
+  document.getElementById('signoutLink').addEventListener('click', (e) => {
+    e.preventDefault();
     stopInterview();
     if (window.localStorage) localStorage.removeItem('interview_user_name');
     userName = '';
     document.getElementById('userChip').style.display = 'none';
-    document.getElementById('navLinks').style.display = 'none';
-    document.getElementById('loginNameInput').value = '';
+    document.getElementById('nameInput').value = '';
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
     showScreen('login');
-  }
-  document.getElementById('userChip').addEventListener('click', goToProfile);
-  document.getElementById('profileSignoutBtn').addEventListener('click', doSignOut);
+  });
   tryAutoLogin();
 
-  // ---------- landing / hero ----------
   document.getElementById('heroStartBtn').addEventListener('click', () => showScreen('login'));
   document.getElementById('heroDemoBtn').addEventListener('click', () => {
     const card = document.getElementById('previewCard');
@@ -1370,7 +842,6 @@
     setTimeout(() => card.classList.remove('pulse'), 1600);
   });
 
-  // ---------- returning candidate banner (cross-day, powered by the RAG memory store) ----------
   async function loadReturningBanner(){
     const banner = document.getElementById('returningBanner');
     banner.classList.remove('show');
@@ -1379,6 +850,7 @@
       const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/summary');
       const data = await res.json();
       if (!data.isReturning) return;
+      document.getElementById('rbDayNum').textContent = data.dayNumber;
       document.getElementById('rbText').textContent = 'Welcome back — last time you covered ' + (data.lastTopic || 'a topic') + '.';
       const tagsEl = document.getElementById('rbTags');
       tagsEl.innerHTML = '';
@@ -1392,7 +864,6 @@
     } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
   }
 
-  // ---------- dashboard: readiness + skill bars + weakest area + recent interviews ----------
   function scoreClass(n){ return n >= 75 ? 'good' : n >= 55 ? 'mid' : 'low'; }
   function fmtDate(iso){
     try { return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric' }); }
@@ -1400,12 +871,14 @@
   }
   async function loadDashboardData(){
     const dashGrid = document.getElementById('dashGrid');
+    const emptyCard = document.getElementById('dashEmptyCard');
     dashGrid.style.display = 'none';
+    emptyCard.style.display = 'none';
     if (!userName) return;
     try {
       const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/history');
       const data = await res.json();
-      if (!data.hasHistory) return;
+      if (!data.hasHistory) { emptyCard.style.display = 'block'; return; }
       dashGrid.style.display = 'grid';
 
       document.getElementById('readinessNum').textContent = data.readiness;
@@ -1443,116 +916,9 @@
           list.appendChild(row);
         });
       }
-
-      const qaSub = document.getElementById('qaHistorySub');
-      if (qaSub) qaSub.textContent = (data.sessions ? data.sessions.length : 0) + ' interview' + (data.sessions && data.sessions.length === 1 ? '' : 's');
     } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
   }
 
-  // ---------- history page (reuses the same /history endpoint the dashboard uses) ----------
-  async function loadHistoryPage(){
-    const list = document.getElementById('historyList');
-    const empty = document.getElementById('historyEmpty');
-    list.innerHTML = '';
-    empty.style.display = 'none';
-    if (!userName) return;
-    try {
-      const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/history');
-      const data = await res.json();
-      if (!data.hasHistory || !data.sessions || !data.sessions.length){
-        empty.style.display = 'block';
-        return;
-      }
-      data.sessions.forEach(s => {
-        const item = document.createElement('div');
-        item.className = 'history-item';
-
-        const row = document.createElement('div');
-        row.className = 'history-row';
-        row.innerHTML =
-          '<div><div class="hr-topic"><span class="hr-chevron">▸</span>' + s.topic + '</div><div class="hr-date">' + fmtDate(s.date) + '</div></div>' +
-          '<div style="text-align:center;"><div class="hr-score ' + scoreClass(s.score) + '">' + s.score + '</div><div class="hr-score-lbl">score</div></div>';
-        item.appendChild(row);
-
-        const expand = document.createElement('div');
-        expand.className = 'history-expand';
-
-        const concepts = s.concepts || [];
-        let conceptsHtml = '<div class="he-label">Concepts from this interview</div><div class="he-concepts">';
-        if (concepts.length){
-          concepts.forEach(c => {
-            conceptsHtml += '<div class="he-concept-row"><span><span class="hec-tag">' + c.tag + '</span><span class="hec-score">' + c.score + '%</span></span>' +
-              '<button type="button" class="btn-ghost hec-practice-btn" data-tag="' + c.tag.replace(/"/g,'&quot;') + '" data-score="' + c.score + '">Practice →</button></div>';
-          });
-        } else {
-          conceptsHtml += '<div class="dash-empty">No concept breakdown recorded for this session.</div>';
-        }
-        conceptsHtml += '</div>';
-
-        expand.innerHTML =
-          conceptsHtml +
-          '<div class="he-actions">' +
-            '<button type="button" class="btn-ghost he-report-btn">📄 View Report</button>' +
-          '</div>' +
-          '<div class="he-report-status" style="display:none;"></div>';
-
-        item.appendChild(expand);
-        list.appendChild(item);
-
-        row.addEventListener('click', () => {
-          const wasOpen = item.classList.contains('open');
-          document.querySelectorAll('.history-item.open').forEach(el => el.classList.remove('open'));
-          if (!wasOpen) item.classList.add('open');
-        });
-        expand.querySelectorAll('.hec-practice-btn').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            selectTopicForPractice(btn.dataset.tag, Number(btn.dataset.score));
-          });
-        });
-        expand.querySelector('.he-report-btn').addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const statusEl = expand.querySelector('.he-report-status');
-          statusEl.style.display = 'block';
-          statusEl.textContent = 'Loading report…';
-          try {
-            const check = await fetch(apiBase() + '/api/interview/' + s.sessionId + '/report');
-            if (!check.ok) {
-              statusEl.textContent = 'This report is no longer available.';
-              return;
-            }
-            sessionId = s.sessionId;
-            await loadReport();
-            statusEl.style.display = 'none';
-          } catch (err) {
-            statusEl.textContent = 'Could not load this report right now — please try again.';
-          }
-        });
-      });
-    } catch (e) { empty.style.display = 'block'; empty.textContent = 'Could not load history — check your connection and try again.'; }
-  }
-
-  // ---------- profile page ----------
-  async function loadProfilePage(){
-    document.getElementById('profileAvatar').textContent = initials(userName);
-    document.getElementById('profileName').textContent = userName;
-    document.getElementById('profileReadiness').textContent = '—';
-    document.getElementById('profileCount').textContent = '—';
-    if (!userName) return;
-    try {
-      const res = await fetch(apiBase() + '/api/candidate/' + encodeURIComponent(userName) + '/history');
-      const data = await res.json();
-      if (data.hasHistory){
-        document.getElementById('profileReadiness').textContent = data.readiness + '%';
-        document.getElementById('profileCount').textContent = (data.sessions || []).length;
-      } else {
-        document.getElementById('profileReadiness').textContent = '—';
-        document.getElementById('profileCount').textContent = '0';
-      }
-    } catch (e) { /* not fatal — profile still shows name */ }
-  }
-
-  // ---------- 🧠 AI Interview Memory (concept trends across all past sessions) ----------
   const MEMORY_STATUS_LABEL = {
     improved: '↑ Improved',
     needs_practice: '→ Needs practice',
@@ -1592,7 +958,6 @@
     } catch (e) { /* backend not reachable yet — silently skip, not fatal */ }
   }
 
-  // ---------- practice mode ----------
   function showPracticeBanner(tag, baselineScore){
     document.getElementById('practiceBannerTag').textContent = tag;
     document.getElementById('practiceBannerBaseline').textContent =
@@ -1608,19 +973,8 @@
     hidePracticeBanner();
   }
   document.getElementById('practiceBannerCancel').addEventListener('click', clearPracticeMode);
-  // "Start Interview →" on the persistent practice banner — jumps straight into
-  // Studio with the practice topic already selected, same as "Practice Now",
-  // so the candidate doesn't have to re-pick the weak area every time.
-  document.getElementById('practiceBannerStart').addEventListener('click', () => {
-    if (practiceFocus) selectTopicForPractice(practiceFocus, practiceBaselineScore);
-  });
 
-  // Selects a subject chip if it matches a preset topic, otherwise drops the
-  // tag into the custom-topic box — used by "Practice Now" / "Practice Weak Areas"
-  // / memory-card "Practice →" buttons. Also enters practice mode so the next
-  // interview started is a focused 5-question re-test drill on this concept.
   function selectTopicForPractice(topic, baselineScore){
-    goToStudio();
     practiceFocus = topic;
     practiceBaselineScore = typeof baselineScore === 'number' ? baselineScore : null;
     showPracticeBanner(topic, practiceBaselineScore);
@@ -1642,10 +996,9 @@
       box.classList.remove('show');
     }
     selectedTopic = topic;
-    setTimeout(() => document.getElementById('startBtn').scrollIntoView({ behavior:'smooth', block:'center' }), 50);
+    document.getElementById('startBtn').scrollIntoView({ behavior:'smooth', block:'center' });
   }
 
-  // ---------- subject chips ----------
   document.querySelectorAll('.subject-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('selected'));
@@ -1659,14 +1012,11 @@
         box.classList.remove('show');
         selectedTopic = chip.dataset.topic;
       }
-      // Manually picking a subject means the candidate wants a normal
-      // interview, not the focused drill — leave practice mode.
       if (practiceFocus) clearPracticeMode();
     });
   });
   document.getElementById('topicInput').addEventListener('input', (e) => { selectedTopic = e.target.value.trim(); });
 
-  // ---------- resume/JD persistence ----------
   const resumeInputEl = document.getElementById('resumeInput');
   if (resumeInputEl) {
     const savedResume = window.localStorage ? localStorage.getItem('interview_resume_context') : '';
@@ -1676,17 +1026,9 @@
     });
   }
 
-  // ---------- resume/JD paste fallback ----------
-  const resumeToggleBtn = document.getElementById('resumeToggleBtn');
-  if (resumeToggleBtn) {
-    resumeToggleBtn.addEventListener('click', () => {
-      document.getElementById('resumeCard').classList.toggle('open');
-    });
-  }
- const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
+  const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
   const pasteStatus = document.getElementById('pasteStatus');
 
-  // ---------- resume/JD file upload (PDF/TXT) ----------
   const uploadResumeBtn = document.getElementById('uploadResumeBtn');
   const resumeFileInput = document.getElementById('resumeFileInput');
   if (uploadResumeBtn && resumeFileInput) {
@@ -1772,7 +1114,6 @@
     });
   }
 
-  // ---------- persona selection ----------
   document.querySelectorAll('.persona-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.persona-btn').forEach(b => b.classList.remove('selected'));
@@ -1781,16 +1122,12 @@
     });
   });
 
-  // ---------- experience / interview type / duration + plan preview ----------
   let experience = 'Intermediate';
   let interviewType = 'Technical';
   let durationMinutes = 30;
 
   function renderPlan(){
-    // Duration-specific floor: leaves the existing 15/30/45-min estimate formula
-    // completely untouched, only guarantees the newly-added 10-min tier previews
-    // at least 8 questions (per spec) instead of the generic formula's ~4.
-    const total = durationMinutes === 10 ? 8 : Math.max(4, Math.round(durationMinutes / 3));
+    const total = Math.max(4, Math.round(durationMinutes / 3));
     let technical, behavioral;
     if (interviewType === 'Behavioral'){ behavioral = total - 1; technical = 1; }
     else if (interviewType === 'Mixed'){ technical = Math.ceil(total * 0.5); behavioral = total - technical; }
@@ -1827,7 +1164,6 @@
   });
   renderPlan();
 
-  // ---------- difficulty ladder ----------
   function renderLadder(level){
     const ladder = document.getElementById('ladder');
     ladder.innerHTML = '';
@@ -1839,17 +1175,16 @@
     }
   }
 
-  // ---------- adaptive difficulty toast ("🧠 Difficulty adapting...") ----------
   function showDifficultyToast(newLevel, oldLevel){
     const toast = document.getElementById('diffToast');
     if (oldLevel === null || newLevel === oldLevel){ toast.classList.remove('show'); return; }
-    const arrow = newLevel > oldLevel ? '↑' : '↓';
-    toast.textContent = '🧠 Difficulty adapting… adjusted ' + arrow + ' to L' + newLevel;
+    const increased = newLevel > oldLevel;
+    toast.innerHTML = (increased ? '🔥 Difficulty increased' : '🧭 Difficulty adjusted') +
+      '<br/><span style="opacity:.8;">L' + oldLevel + ' → L' + newLevel + ' · based on your previous answer</span>';
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3200);
+    setTimeout(() => toast.classList.remove('show'), 3600);
   }
 
-  // ---------- room header: live timer + recording state ----------
   function startRoomTimer(){
     roomTimerStart = Date.now();
     const el = document.getElementById('rhTimer');
@@ -1866,9 +1201,6 @@
     roomTimerInterval = null;
   }
 
-  // =====================================================================
-  // Camera / posture-confidence engine (unchanged from prior version)
-  // =====================================================================
   let cameraEnabled = false;
   let cameraStream = null;
   let poseLandmarker = null;
@@ -2036,7 +1368,6 @@
     document.getElementById('vvGaze').textContent = v.gaze;
   }
 
-  // ---------- orb state ----------
   const orb = document.getElementById('orb');
   const orbLabel = document.getElementById('orbLabel');
   function setOrb(state, label){
@@ -2054,7 +1385,6 @@
     timeline.scrollTop = timeline.scrollHeight;
   }
 
-  // ---------- persona-matched TTS voices ----------
   let cachedVoices = [];
   function refreshVoices(){ cachedVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; }
   if (window.speechSynthesis){
@@ -2071,7 +1401,6 @@
     return byName(['female','zira','samantha','us english']) || pool[0];
   }
 
-  // ---------- TTS ----------
   let currentUtterResolve = null;
   function speak(text){
     return new Promise((resolve) => {
@@ -2094,7 +1423,6 @@
   }
   document.getElementById('skipBtn').addEventListener('click', skipVoiceover);
 
-  // ---------- manual "done answering" override ----------
   document.getElementById('doneAnsweringBtn').addEventListener('click', () => {
     markLatency('I\'m-done clicked');
     manualStopRequested = true;
@@ -2104,7 +1432,6 @@
     }
   });
 
-  // ---------- report: full transcript + replay ----------
   const transcriptToggleBtn = document.getElementById('transcriptToggleBtn');
   const replayToggleBtn = document.getElementById('replayToggleBtn');
   const transcriptWrap = document.getElementById('transcriptWrap');
@@ -2159,7 +1486,7 @@
     counter.textContent = 'Q' + (replayIndex + 1) + ' / ' + currentTimeline.length;
     qEl.textContent = t.question || '';
     aEl.textContent = t.answer ? '“' + t.answer + '”' : '(no answer captured)';
-    fEl.textContent = t.evidenceFeedback || '';
+    fEl.textContent = (t.evidenceFeedback || '') + (t.nextAction ? '  →  ' + t.nextAction : '');
   }
   let replayUtterResolve = null;
   function replaySpeak(text){
@@ -2219,7 +1546,6 @@
     renderReplayStep();
   });
 
-  // ---------- STT (simple, used for the exit-confirmation prompt) ----------
   function listenOnce(){
     return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
@@ -2252,14 +1578,13 @@
     });
   }
 
-  // ---------- STT with barge-in + fast silence-based auto-submit ----------
   function listenWithBargeIn(isAiSpeaking, onBargeIn){
    return new Promise((resolve, reject) => {
       if (!SpeechRecognition) { reject(new Error('no-speech-support')); return; }
- 
-      const SILENCE_GRACE_MS = 600; // tight — tune 500-800ms to taste
-      const HARD_TIMEOUT_MS = 45000; // absolute safety cap
- 
+
+      const SILENCE_GRACE_MS = 600;
+      const HARD_TIMEOUT_MS = 45000;
+
       let finalTranscript = '';
       let lastInterimText = '';
       let hasSpokenAtLeastOnce = false;
@@ -2268,7 +1593,7 @@
       let fatalError = null;
       let silenceTimer = null;
       manualStopRequested = false;
- 
+
       function armSilenceTimer(){
         if (silenceTimer) clearTimeout(silenceTimer);
         if (!hasSpokenAtLeastOnce) return;
@@ -2278,7 +1603,7 @@
           if (recognition) { try { recognition.stop(); } catch(e) {} }
         }, SILENCE_GRACE_MS);
       }
- 
+
       function startOne(){
         recognition = new SpeechRecognition();
         recognition.lang = 'en-IN';
@@ -2288,7 +1613,7 @@
         let bargedIn = !isAiSpeaking();
         let endHandled = false;
         let exitDetected = false;
- 
+
         recognition.onresult = (event) => {
           let interim = '';
           for (let i = event.resultIndex; i < event.results.length; i++){
@@ -2325,7 +1650,7 @@
           recognizing = false;
           if (silenceTimer) clearTimeout(silenceTimer);
           document.getElementById('micBtn').classList.remove('on');
- 
+
           if (manualStopRequested || !interviewActive){
             const finalAnswer = finalTranscript.trim() || lastInterimText.trim();
             markLatency('answer finalized', { chars: finalAnswer.length });
@@ -2353,9 +1678,7 @@
       startOne();
     });
   }
- 
 
-  // ---------- voice "exit interview" command ----------
   function isExitCommand(text){
     const t = (text || '').toLowerCase();
     const phrases = ['exit interview', 'end interview', 'stop interview', 'exit the interview',
@@ -2378,7 +1701,6 @@
     return /\b(yes|yeah|yep|confirm|sure|correct)\b/i.test(reply || '');
   }
 
-  // ---------- mic error recovery ----------
   const micBtn = document.getElementById('micBtn');
   function showMicRetry(){
     micBtn.textContent = '🎙️ Tap to retry';
@@ -2397,7 +1719,6 @@
     micBtn.textContent = 'hold mic disabled — auto listening';
   }
 
-  // ---------- main interview loop ----------
   async function askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink){
     if (!interviewActive) return;
     lastAskArgs = [questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink];
@@ -2407,6 +1728,7 @@
     lastDifficultyLevel = difficulty;
     setFeedback('');
     setCaption(questionText);
+    document.getElementById('followUpLabel').style.display = qNum > 1 ? 'block' : 'none';
     setInterviewState('speaking', 'AI Speaking');
     setOrb('ai-speaking', 'interviewer speaking — jump in anytime');
     document.getElementById('crossDayBadge').classList.toggle('show', !!crossDayLink);
@@ -2456,7 +1778,7 @@
         stopInterview();
         setConn('idle', false);
         document.getElementById('sessionLabel').style.display = 'none';
-        goToDashboard();
+        showScreen('welcome');
         return;
       }
       return askAndListen(questionText, difficulty, qNum, elapsedMinutes, targetMinutes, crossDayLink);
@@ -2512,7 +1834,6 @@
     return askAndListen(data.nextQuestion, data.difficulty, data.questionNumber, data.elapsedMinutes, data.targetMinutes, data.crossDayLink);
   }
 
-  // ---------- start interview ----------
   document.getElementById('startBtn').addEventListener('click', async () => {
     const welcomeWarning = document.getElementById('welcomeWarning');
     welcomeWarning.style.display = 'none';
@@ -2562,9 +1883,6 @@
       setConn('live', true);
       showScreen('room');
       if (cameraEnabled) startPostureTracking();
-      // Practice mode is one-shot per interview — clear it now that the
-      // session has actually started, so the next interview defaults back
-      // to a normal one unless the candidate picks "Practice" again.
       clearPracticeMode();
       askAndListen(data.question, data.difficulty, data.questionNumber, 0, data.targetMinutes, data.crossDayLink);
     } catch (err) {
@@ -2576,7 +1894,6 @@
     }
   });
 
-  // ---------- report progress trend ----------
   let lastReportWeakTag = '';
   let lastReportWeakBaseline = null;
   async function loadProgressTrend(reportData){
@@ -2610,13 +1927,16 @@
       if (lastReportWeakTag){
         practiceBtn.style.display = 'inline-block';
         practiceBtn.onclick = () => {
+          showScreen('welcome');
+          loadReturningBanner();
+          loadDashboardData();
+          loadMemoryData();
           selectTopicForPractice(lastReportWeakTag, lastReportWeakBaseline);
         };
       }
     } catch (e) { /* not fatal — report already shown without the trend */ }
   }
 
-  // ---------- skill radar (SVG spider chart) ----------
   function renderRadar(skillRadar){
     const svg = document.getElementById('radarSvg');
     const legend = document.getElementById('radarLegend');
@@ -2678,7 +1998,6 @@
     });
   }
 
-  // ---------- report ----------
   async function loadReport(){
     const res = await fetch(apiBase() + '/api/interview/' + sessionId + '/report');
     const data = await res.json();
@@ -2692,9 +2011,6 @@
     document.getElementById('scoreComm').textContent = data.scores.communication + '%';
     document.getElementById('scoreProblem').textContent = data.scores.problemSolving + '%';
 
-    // Practice drills don't get a hiring recommendation / day-count badge —
-    // those are meaningless for a 5-question focused re-test — swap in a
-    // "Practice Drill" pill and the dedicated before→after card instead.
     document.getElementById('recommendBadge').style.display = data.practiceMode ? 'none' : 'inline-block';
     document.getElementById('recommendBadge').textContent = data.recommendation;
     document.getElementById('dayPill').style.display = data.practiceMode ? 'none' : 'inline-flex';
@@ -2784,7 +2100,10 @@
     stopInterview();
     setConn('idle', false);
     document.getElementById('sessionLabel').style.display = 'none';
-    goToDashboard();
+    showScreen('welcome');
+    loadReturningBanner();
+    loadDashboardData();
+    loadMemoryData();
   });
 
 })();
